@@ -1,8 +1,18 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { fraunces } from '@/lib/fonts'
+import { createClient } from '@/lib/supabase/server'
 
-export default function Home() {
+export default async function Home(props: PageProps<'/'>) {
+  const { code } = await props.searchParams
+
+  if (typeof code === 'string') {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) redirect('/app')
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#F1ECE2] px-6 text-center">
       <Image src="/bonfil-logo.png" alt="Bonfil" width={96} height={111} priority />
