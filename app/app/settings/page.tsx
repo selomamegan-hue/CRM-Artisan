@@ -23,7 +23,7 @@ export default async function SettingsPage() {
   ]
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 pb-10 pt-6 md:max-w-lg md:px-10 md:pt-10">
+    <div className="mx-auto flex max-w-md flex-col px-6 pb-10 pt-6 md:max-w-lg md:px-10 md:pt-10">
       <h1 className={`${fraunces.className} text-2xl text-[#22303A]`}>Profil</h1>
 
       <div className="flex flex-col items-center gap-2.5 py-6">
@@ -42,9 +42,7 @@ export default async function SettingsPage() {
         ))}
       </div>
 
-      <div className="flex-1" />
-
-      <form action={signOut} className="mt-5">
+      <form action={signOut} className="mt-8">
         <button
           type="submit"
           className="flex w-full items-center justify-center gap-2 rounded-lg border-[1.5px] border-[#22303A]/25 py-3 text-[14.5px] font-semibold text-[#5B6B72]"

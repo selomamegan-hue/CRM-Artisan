@@ -63,11 +63,11 @@ export function AppNav() {
         <Link
           href="/app/record"
           aria-label="Enregistrer une note"
-          className="absolute left-1/2 top-[-26px] flex h-[58px] w-[58px] -translate-x-1/2 items-center justify-center rounded-full border-4 border-[#F1ECE2] bg-[#D97B4F] text-white shadow-[0_8px_20px_rgba(217,123,79,0.38)]"
+          className="absolute left-1/2 top-[-46px] flex h-[54px] w-[54px] -translate-x-1/2 items-center justify-center rounded-full border-4 border-[#F1ECE2] bg-[#D97B4F] text-white shadow-[0_8px_20px_rgba(217,123,79,0.38)]"
         >
           <MicIcon />
         </Link>
-        <div className="flex border-t border-[#22303A]/[0.14] bg-white px-3 pb-[max(10px,env(safe-area-inset-bottom))]">
+        <div className="flex border-t border-[#22303A]/[0.14] bg-white px-3 pt-4 pb-[max(10px,env(safe-area-inset-bottom))]">
           {LINKS.map((link) => {
             const active = isActive(pathname, link.href)
             return (
