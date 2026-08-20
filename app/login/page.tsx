@@ -28,7 +28,14 @@ export default function LoginPage() {
           className="rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
         />
 
-        {state?.error && <p className="text-sm text-[#C96A3D]">{state.error}</p>}
+        {state?.error && (
+          <div className="flex flex-col gap-1 text-sm text-[#C96A3D]">
+            <p>{state.error}</p>
+            <Link href="/reset-password" className="underline">
+              Mot de passe oublié ?
+            </Link>
+          </div>
+        )}
 
         <button
           type="submit"
@@ -39,9 +46,14 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <Link href="/signup" className="text-sm text-[#1A5F7A] underline">
-        Pas encore de compte ? Créer un compte
-      </Link>
+      <div className="flex flex-col items-center gap-2">
+        <Link href="/signup" className="text-sm text-[#1A5F7A] underline">
+          Pas encore de compte ? Créer un compte
+        </Link>
+        <Link href="/reset-password" className="text-sm text-[#5B6B72] underline underline-offset-2">
+          Mot de passe oublié ?
+        </Link>
+      </div>
     </div>
   )
 }
