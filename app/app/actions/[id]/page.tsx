@@ -33,7 +33,20 @@ export default async function ActionDetailPage({ params }: PageProps<'/app/actio
       <div className="mt-3 rounded-xl bg-white px-4 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
         <div className="flex items-center justify-between border-b border-[#22303A]/[0.14] py-3.5">
           <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Client</span>
-          <span className="text-[15px] font-semibold text-[#22303A]">{client?.name ?? 'Client'}</span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-[15px] font-semibold text-[#22303A]">{client?.name ?? 'Client'}</span>
+            {client?.phone && (
+              <a
+                href={`tel:${client.phone.replace(/\s+/g, '')}`}
+                aria-label={`Appeler ${client.name}`}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-[#3A9188]/[0.13] text-[#3A9188]"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6.5 4h3l1.5 4.5-2 1.5a11 11 0 005 5l1.5-2 4.5 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 6.2 2 2 0 016.5 4z" />
+                </svg>
+              </a>
+            )}
+          </div>
         </div>
         <div className="flex items-center justify-between py-3.5">
           <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Échéance</span>

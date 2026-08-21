@@ -13,7 +13,18 @@ export default async function ClientsPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-6 md:max-w-lg md:px-10 md:pt-10">
-      <h1 className={`${fraunces.className} mb-3.5 text-2xl text-[#22303A]`}>Clients</h1>
+      <div className="mb-3.5 flex items-center justify-between">
+        <h1 className={`${fraunces.className} text-2xl text-[#22303A]`}>Clients</h1>
+        <Link
+          href="/app/clients/new"
+          aria-label="Nouveau client"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1A5F7A] text-white"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </Link>
+      </div>
 
       {rows.length === 0 ? (
         <p className="pt-10 text-center text-sm text-[#5B6B72]">
