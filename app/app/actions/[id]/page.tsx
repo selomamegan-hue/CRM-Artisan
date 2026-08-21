@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { dueLabel } from '@/lib/urgency'
+import { formatAmount } from '@/lib/currency'
 import { markDone, cancelAction, postpone, recordPayment } from './actions'
 
 export default async function ActionDetailPage({ params }: PageProps<'/app/actions/[id]'>) {
@@ -58,15 +59,15 @@ export default async function ActionDetailPage({ params }: PageProps<'/app/actio
           <>
             <div className="flex items-center justify-between border-t border-[#22303A]/[0.14] py-3.5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Montant</span>
-              <span className="text-[15px] font-semibold text-[#22303A]">{action.amount} €</span>
+              <span className="text-[15px] font-semibold text-[#22303A]">{formatAmount(action.amount)}</span>
             </div>
             <div className="flex items-center justify-between border-t border-[#22303A]/[0.14] py-3.5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Acompte reçu</span>
-              <span className="text-[15px] font-semibold text-[#22303A]">{action.amount_paid} €</span>
+              <span className="text-[15px] font-semibold text-[#22303A]">{formatAmount(action.amount_paid)}</span>
             </div>
             <div className="flex items-center justify-between border-t border-[#22303A]/[0.14] py-3.5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Solde restant</span>
-              <span className="text-[15px] font-semibold text-[#D97B4F]">{action.amount - action.amount_paid} €</span>
+              <span className="text-[15px] font-semibold text-[#D97B4F]">{formatAmount(action.amount - action.amount_paid)}</span>
             </div>
           </>
         )}
@@ -76,7 +77,7 @@ export default async function ActionDetailPage({ params }: PageProps<'/app/actio
         <form action={recordPayment.bind(null, action.id)} className="mt-3 flex items-center gap-2">
           <input
             type="number"
-            step="0.01"
+            step="1"
             name="amount_paid"
             defaultValue={action.amount_paid}
             placeholder="Acompte reçu"
