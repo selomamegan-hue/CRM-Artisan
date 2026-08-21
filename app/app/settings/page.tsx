@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { signOut } from '../actions'
+import { subscriptionStatus, subscriptionLabel, SUBSCRIPTION_STYLE, SUBSCRIPTION_DOT } from '@/lib/subscription'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -9,12 +10,16 @@ export default async function SettingsPage() {
   } = await supabase.auth.getUser()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, phone, whatsapp')
+    .select('full_name, phone, whatsapp, subscription_expires_at')
     .eq('id', user!.id)
     .single()
 
   const name = profile?.full_name?.trim() || 'Sans nom'
   const initial = (profile?.full_name?.trim()?.[0] ?? user?.email?.[0] ?? '?').toUpperCase()
+
+  const today = new Date()
+  const status = subscriptionStatus(profile?.subscription_expires_at ?? null, today)
+  const statusLabel = subscriptionLabel(profile?.subscription_expires_at ?? null, today)
 
   const rows = [
     { label: 'Nom', value: profile?.full_name || '—' },
@@ -31,6 +36,10 @@ export default async function SettingsPage() {
           {initial}
         </div>
         <p className="text-base font-bold text-[#22303A]">{name}</p>
+        <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-semibold ${SUBSCRIPTION_STYLE[status]}`}>
+          <span className={`h-[7px] w-[7px] rounded-full ${SUBSCRIPTION_DOT[status]}`} />
+          {statusLabel}
+        </span>
       </div>
 
       <div className="rounded-xl bg-white px-4 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
