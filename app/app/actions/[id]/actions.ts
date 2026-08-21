@@ -30,3 +30,12 @@ export async function postpone(id: string, formData: FormData) {
   revalidatePath('/app')
   redirect('/app')
 }
+
+export async function recordPayment(id: string, formData: FormData) {
+  const amountPaid = Number(formData.get('amount_paid') ?? 0)
+
+  const supabase = await createClient()
+  await supabase.from('actions').update({ amount_paid: amountPaid }).eq('id', id)
+  revalidatePath(`/app/actions/${id}`)
+  redirect(`/app/actions/${id}`)
+}

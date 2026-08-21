@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { dueLabel } from '@/lib/urgency'
-import { markDone, cancelAction, postpone } from './actions'
+import { markDone, cancelAction, postpone, recordPayment } from './actions'
 
 export default async function ActionDetailPage({ params }: PageProps<'/app/actions/[id]'>) {
   const { id } = await params
@@ -11,7 +11,7 @@ export default async function ActionDetailPage({ params }: PageProps<'/app/actio
 
   const { data: action } = await supabase
     .from('actions')
-    .select('id, due_date, excerpt, amount, status, clients(name, phone), notes(transcript)')
+    .select('id, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript)')
     .eq('id', id)
     .single()
 
@@ -55,12 +55,38 @@ export default async function ActionDetailPage({ params }: PageProps<'/app/actio
           </span>
         </div>
         {action.amount != null && (
-          <div className="flex items-center justify-between border-t border-[#22303A]/[0.14] py-3.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Montant</span>
-            <span className="text-[15px] font-semibold text-[#22303A]">{action.amount} €</span>
-          </div>
+          <>
+            <div className="flex items-center justify-between border-t border-[#22303A]/[0.14] py-3.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Montant</span>
+              <span className="text-[15px] font-semibold text-[#22303A]">{action.amount} €</span>
+            </div>
+            <div className="flex items-center justify-between border-t border-[#22303A]/[0.14] py-3.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Acompte reçu</span>
+              <span className="text-[15px] font-semibold text-[#22303A]">{action.amount_paid} €</span>
+            </div>
+            <div className="flex items-center justify-between border-t border-[#22303A]/[0.14] py-3.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Solde restant</span>
+              <span className="text-[15px] font-semibold text-[#D97B4F]">{action.amount - action.amount_paid} €</span>
+            </div>
+          </>
         )}
       </div>
+
+      {action.amount != null && (
+        <form action={recordPayment.bind(null, action.id)} className="mt-3 flex items-center gap-2">
+          <input
+            type="number"
+            step="0.01"
+            name="amount_paid"
+            defaultValue={action.amount_paid}
+            placeholder="Acompte reçu"
+            className="w-full min-w-0 rounded-lg border-[1.5px] border-[#22303A]/25 px-3 py-2.5 text-[13px] text-[#22303A]"
+          />
+          <button type="submit" className="shrink-0 rounded-lg border-[1.5px] border-[#22303A] px-3 py-2.5 text-[14px] font-semibold text-[#22303A]">
+            Enregistrer
+          </button>
+        </form>
+      )}
 
       {note?.transcript && (
         <p className={`${fraunces.className} mt-5 border-l-2 border-[#3A9188] pl-3.5 text-[15px] italic leading-relaxed text-[#22303A]`}>
