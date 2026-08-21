@@ -8,6 +8,8 @@ const CHECKS = [
   { table: 'clients', columns: 'id, archived_at' },
   { table: 'notes', columns: 'id, status' },
   { table: 'actions', columns: 'id, amount, updated_at' },
+  { table: 'actions', columns: 'id, amount_paid' },
+  { table: 'feedback', columns: 'id, user_id, message, created_at' },
 ] as const
 
 export async function GET() {

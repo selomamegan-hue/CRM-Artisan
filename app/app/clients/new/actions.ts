@@ -2,12 +2,16 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { findBestClientMatch } from '@/lib/client-match'
 
-export type CreateClientState = { error?: string } | undefined
+export type CreateClientState =
+  | { error?: string; duplicate?: { id: string; name: string } }
+  | undefined
 
 export async function createNewClient(_prevState: CreateClientState, formData: FormData) {
   const name = String(formData.get('name') ?? '').trim()
   const phone = String(formData.get('phone') ?? '').trim()
+  const confirmDuplicate = formData.get('confirm_duplicate') === 'true'
 
   if (!name) return { error: 'Le nom est obligatoire.' }
 
@@ -15,6 +19,17 @@ export async function createNewClient(_prevState: CreateClientState, formData: F
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  if (!confirmDuplicate) {
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id, name')
+      .is('archived_at', null)
+      .order('name')
+
+    const match = findBestClientMatch(name, existing ?? [])
+    if (match) return { duplicate: { id: match.id, name: match.name } }
+  }
 
   const { data, error } = await supabase
     .from('clients')

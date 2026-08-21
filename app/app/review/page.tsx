@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { fraunces } from '@/lib/fonts'
 import { createClient } from '@/lib/supabase/client'
+import { findBestClientMatch } from '@/lib/client-match'
 import { confirmNote } from './actions'
 
 type PendingNote = {
@@ -41,6 +42,7 @@ export default function ReviewPage() {
   const [selectedClientId, setSelectedClientId] = useState('')
   const [newClientName, setNewClientName] = useState('')
   const [isNewClient, setIsNewClient] = useState(false)
+  const [duplicateDismissed, setDuplicateDismissed] = useState(false)
 
   useEffect(() => {
     const raw = sessionStorage.getItem('bonfil:pending-note')
@@ -73,7 +75,14 @@ export default function ReviewPage() {
     )
   }
 
-  function handleSubmit() {
+  const duplicateMatch =
+    isNewClient && newClientName ? findBestClientMatch(newClientName, clients) : null
+
+  function handleSubmit(e: FormEvent) {
+    if (duplicateMatch && !duplicateDismissed) {
+      e.preventDefault()
+      return
+    }
     sessionStorage.removeItem('bonfil:pending-note')
   }
 
@@ -132,11 +141,40 @@ export default function ReviewPage() {
               <input
                 name="new_client_name"
                 value={newClientName}
-                onChange={(e) => setNewClientName(e.target.value)}
+                onChange={(e) => {
+                  setNewClientName(e.target.value)
+                  setDuplicateDismissed(false)
+                }}
                 placeholder="Nom du client"
                 required
                 className="w-full rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
               />
+              {duplicateMatch && !duplicateDismissed && (
+                <div className="mt-2 rounded-[10px] bg-[#D97B4F]/10 px-3.5 py-3 text-[13px] text-[#22303A]">
+                  <p className="mb-2">
+                    Un client similaire existe déjà : <span className="font-semibold">{duplicateMatch.name}</span>. C&apos;est lui ?
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClientId(duplicateMatch.id)
+                        setIsNewClient(false)
+                      }}
+                      className="rounded-full border-[1.5px] border-[#1A5F7A] px-3.5 py-1.5 text-[12.5px] font-semibold text-[#1A5F7A]"
+                    >
+                      Utiliser ce client
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDuplicateDismissed(true)}
+                      className="rounded-full border-[1.5px] border-[#22303A]/25 px-3.5 py-1.5 text-[12.5px] font-semibold text-[#5B6B72]"
+                    >
+                      Créer quand même
+                    </button>
+                  </div>
+                </div>
+              )}
               {clients.length > 0 && (
                 <button
                   type="button"

@@ -71,13 +71,38 @@ export default function NewClientPage() {
 
         {state?.error && <p className="text-sm text-[#C96A3D]">{state.error}</p>}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {pending ? 'Création…' : 'Ajouter le client'}
-        </button>
+        {state?.duplicate ? (
+          <div className="rounded-[10px] bg-[#D97B4F]/10 px-3.5 py-3 text-[13px] text-[#22303A]">
+            <p className="mb-2">
+              Un client similaire existe déjà : <span className="font-semibold">{state.duplicate.name}</span>. C&apos;est lui ?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/app/clients/${state.duplicate.id}`}
+                className="rounded-full border-[1.5px] border-[#1A5F7A] px-3.5 py-1.5 text-[12.5px] font-semibold text-[#1A5F7A]"
+              >
+                Voir sa fiche
+              </Link>
+              <button
+                type="submit"
+                name="confirm_duplicate"
+                value="true"
+                disabled={pending}
+                className="rounded-full border-[1.5px] border-[#22303A]/25 px-3.5 py-1.5 text-[12.5px] font-semibold text-[#5B6B72] disabled:opacity-60"
+              >
+                Créer quand même
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {pending ? 'Création…' : 'Ajouter le client'}
+          </button>
+        )}
       </form>
     </div>
   )
