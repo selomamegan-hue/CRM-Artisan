@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { fraunces } from '@/lib/fonts'
 import { createClient } from '@/lib/supabase/client'
 import { confirmNote } from './actions'
@@ -25,9 +24,19 @@ const TYPE_OPTIONS: { value: PendingNote['type']; label: string }[] = [
   { value: 'autre', label: 'Autre' },
 ]
 
+const BLANK_NOTE: PendingNote = {
+  transcript: '',
+  type: 'autre',
+  due_date: null,
+  amount: null,
+  excerpt: '',
+  client_name_heard: null,
+  matched_client: null,
+}
+
 export default function ReviewPage() {
-  const router = useRouter()
-  const [pending, setPending] = useState<PendingNote | null | undefined>(undefined)
+  const [pending, setPending] = useState<PendingNote | undefined>(undefined)
+  const [isManual, setIsManual] = useState(false)
   const [clients, setClients] = useState<ClientOption[]>([])
   const [selectedClientId, setSelectedClientId] = useState('')
   const [newClientName, setNewClientName] = useState('')
@@ -35,19 +44,16 @@ export default function ReviewPage() {
 
   useEffect(() => {
     const raw = sessionStorage.getItem('bonfil:pending-note')
-    if (!raw) {
-      setPending(null)
-      return
-    }
-    const data: PendingNote = JSON.parse(raw)
+    const data: PendingNote = raw ? JSON.parse(raw) : BLANK_NOTE
     setPending(data)
+    setIsManual(!raw)
 
     if (data.matched_client) {
       setSelectedClientId(data.matched_client.id)
       setIsNewClient(false)
-    } else {
+    } else if (data.client_name_heard) {
       setIsNewClient(true)
-      setNewClientName(data.client_name_heard ?? '')
+      setNewClientName(data.client_name_heard)
     }
 
     const supabase = createClient()
@@ -67,20 +73,6 @@ export default function ReviewPage() {
     )
   }
 
-  if (pending === null) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#F1ECE2] px-8 text-center">
-        <p className="text-sm text-[#5B6B72]">Aucune note en attente de relecture.</p>
-        <button
-          onClick={() => router.push('/app/record')}
-          className="rounded-full bg-[#1A5F7A] px-6 py-2.5 text-sm font-bold text-white"
-        >
-          Enregistrer une note
-        </button>
-      </div>
-    )
-  }
-
   function handleSubmit() {
     sessionStorage.removeItem('bonfil:pending-note')
   }
@@ -88,15 +80,24 @@ export default function ReviewPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 pb-10 pt-6 md:max-w-lg md:px-10 md:pt-10">
       <h1 className={`${fraunces.className} mb-1 text-2xl text-[#22303A]`}>Relecture</h1>
-      <p className="mb-5 text-[13px] text-[#5B6B72]">Vérifie et corrige avant d&apos;enregistrer.</p>
-
-      <div className="mb-5 rounded-[10px] bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Transcription</p>
-        <p className="text-[13.5px] leading-relaxed text-[#22303A]">{pending.transcript}</p>
-      </div>
+      <p className="mb-5 text-[13px] text-[#5B6B72]">
+        {isManual ? 'Saisis les infos de ta note.' : 'Vérifie et corrige avant d’enregistrer.'}
+      </p>
 
       <form action={confirmNote} onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <input type="hidden" name="transcript" value={pending.transcript} />
+        <div>
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
+            {isManual ? 'Ce qui s’est passé' : 'Transcription'}
+          </p>
+          <textarea
+            name="transcript"
+            defaultValue={pending.transcript}
+            placeholder={isManual ? 'Ex : visite chez Koffi Abalo, il faut envoyer un devis pour le tableau électrique.' : undefined}
+            required
+            rows={isManual ? 3 : 2}
+            className="w-full resize-none rounded-[10px] border border-[#22303A]/20 bg-white px-4 py-3.5 text-[13.5px] leading-relaxed text-[#22303A] shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)] outline-none focus:border-[#1A5F7A]"
+          />
+        </div>
 
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Client</p>

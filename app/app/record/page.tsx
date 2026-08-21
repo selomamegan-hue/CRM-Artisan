@@ -99,6 +99,11 @@ export default function RecordPage() {
   const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0')
   const seconds = String(elapsed % 60).padStart(2, '0')
 
+  const goToManualEntry = useCallback(() => {
+    sessionStorage.removeItem('bonfil:pending-note')
+    router.push('/app/review')
+  }, [router])
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#22303A] px-8 text-center">
       {stage === 'idle' && (
@@ -116,6 +121,12 @@ export default function RecordPage() {
               <rect x="9" y="3" width="6" height="12" rx="3" />
               <path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
             </svg>
+          </button>
+          <button
+            onClick={goToManualEntry}
+            className="text-sm text-[#F7F3EC]/50 underline underline-offset-2"
+          >
+            Saisir la note manuellement
           </button>
         </>
       )}
@@ -160,6 +171,12 @@ export default function RecordPage() {
             className="mt-2 rounded-full bg-[#D97B4F] px-6 py-2.5 text-sm font-bold text-white"
           >
             Réessayer
+          </button>
+          <button
+            onClick={goToManualEntry}
+            className="text-sm text-[#F7F3EC]/50 underline underline-offset-2"
+          >
+            Saisir la note manuellement
           </button>
         </>
       )}
