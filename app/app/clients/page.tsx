@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 
@@ -23,7 +24,11 @@ export default async function ClientsPage() {
           {rows.map((client) => {
             const initial = client.name.trim()[0]?.toUpperCase() ?? '?'
             return (
-              <div key={client.id} className="flex items-center gap-3 border-b border-[#22303A]/[0.14] py-3 last:border-b-0">
+              <Link
+                key={client.id}
+                href={`/app/clients/${client.id}`}
+                className="flex items-center gap-3 border-b border-[#22303A]/[0.14] py-3 last:border-b-0"
+              >
                 <div className={`${fraunces.className} flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1A5F7A]/10 text-[15px] text-[#1A5F7A]`}>
                   {initial}
                 </div>
@@ -36,7 +41,7 @@ export default async function ClientsPage() {
                     À compléter
                   </span>
                 )}
-              </div>
+              </Link>
             )
           })}
         </div>

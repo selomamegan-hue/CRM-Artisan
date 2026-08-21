@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { bucketRank, dueBucket, dueLabel, isUrgent } from '@/lib/urgency'
@@ -78,7 +79,11 @@ export default async function LeFilPage() {
               <div className="pb-1 pt-4 text-[11px] font-bold uppercase tracking-[0.07em] text-[#8B9298]">{bucket}</div>
               <div className="md:mb-1 md:rounded-[10px] md:bg-white md:px-3.5 md:shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
                 {items.map((row) => (
-                  <div key={row.id} className="flex items-start gap-3 border-b border-[#22303A]/[0.14] py-3.5 last:border-b-0">
+                  <Link
+                    key={row.id}
+                    href={`/app/actions/${row.id}`}
+                    className="flex items-start gap-3 border-b border-[#22303A]/[0.14] py-3.5 last:border-b-0"
+                  >
                     <span
                       className={`mt-1 inline-block h-[9px] w-[9px] shrink-0 rounded-full ${
                         isUrgent(row.due_date, today) ? 'bg-[#D97B4F]' : 'bg-[#1A5F7A]'
@@ -95,7 +100,7 @@ export default async function LeFilPage() {
                     >
                       {dueLabel(row.due_date, today)}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
