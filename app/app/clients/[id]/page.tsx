@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
-import { updateClient } from './actions'
+import { updateClient, archiveClient } from './actions'
 
 export default async function ClientProfilePage({ params }: PageProps<'/app/clients/[id]'>) {
   const { id } = await params
@@ -97,6 +97,13 @@ export default async function ClientProfilePage({ params }: PageProps<'/app/clie
         <button type="submit" className="rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
           Enregistrer
         </button>
+      </form>
+
+      <form action={archiveClient.bind(null, id)} className="mt-6 text-center">
+        <button type="submit" className="text-[13px] font-medium text-[#C96A3D] underline underline-offset-2">
+          Archiver ce client
+        </button>
+        <p className="mt-1.5 text-[11.5px] text-[#8B9298]">Il sort de la liste, mais son historique reste intact.</p>
       </form>
     </div>
   )

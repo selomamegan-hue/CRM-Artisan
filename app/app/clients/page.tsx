@@ -7,6 +7,7 @@ export default async function ClientsPage() {
   const { data: clients } = await supabase
     .from('clients')
     .select('id, name, phone, is_minimal')
+    .is('archived_at', null)
     .order('name', { ascending: true })
 
   const rows = clients ?? []
