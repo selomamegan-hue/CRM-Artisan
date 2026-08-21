@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
-import { signOut } from '../actions'
+import { signOut, submitFeedback } from '../actions'
 import { subscriptionStatus, subscriptionLabel, SUBSCRIPTION_STYLE, SUBSCRIPTION_DOT } from '@/lib/subscription'
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: PageProps<'/app/settings'>) {
+  const { feedback } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -49,6 +50,23 @@ export default async function SettingsPage() {
             <span className="text-[15px] font-semibold text-[#22303A]">{row.value}</span>
           </div>
         ))}
+      </div>
+
+      <div className="mt-6">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Un avis, une idée ?</p>
+        <form action={submitFeedback} className="flex flex-col gap-2">
+          <textarea
+            name="message"
+            placeholder="Dis-nous ce qui te plaît, ce qui manque, ou ce que tu attends de Bonfil."
+            required
+            rows={3}
+            className="w-full resize-none rounded-[10px] border border-[#22303A]/20 bg-white px-3.5 py-3 text-[13.5px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
+          />
+          <button type="submit" className="self-start rounded-full bg-[#1A5F7A] px-5 py-2 text-[13px] font-semibold text-white">
+            Envoyer
+          </button>
+          {feedback === 'sent' && <p className="text-[12.5px] text-[#3A9188]">Merci, ton message est bien parti.</p>}
+        </form>
       </div>
 
       <form action={signOut} className="mt-8">
