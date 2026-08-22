@@ -1,16 +1,18 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
+import { formatAmount } from '@/lib/currency'
 
 export default async function ClientsPage() {
   const supabase = await createClient()
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('id, name, phone, is_minimal')
-    .is('archived_at', null)
-    .order('name', { ascending: true })
+  const [{ data: clients }, { data: unpaidActions }] = await Promise.all([
+    supabase.from('clients').select('id, name, phone, is_minimal').is('archived_at', null).order('name', { ascending: true }),
+    supabase.from('actions').select('amount, amount_paid').not('amount', 'is', null).neq('status', 'annule'),
+  ])
 
   const rows = clients ?? []
+  const unpaid = (unpaidActions ?? []).filter((a) => a.amount != null && a.amount > a.amount_paid)
+  const totalDue = unpaid.reduce((sum, a) => sum + (a.amount - a.amount_paid), 0)
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-6 md:max-w-lg md:px-10 md:pt-10">
@@ -26,6 +28,20 @@ export default async function ClientsPage() {
           </svg>
         </Link>
       </div>
+
+      {unpaid.length > 0 && (
+        <Link
+          href="/app/impayes"
+          className="mb-3.5 flex items-center justify-between rounded-[10px] bg-[#D97B4F]/10 px-3.5 py-3 text-[13px] text-[#22303A]"
+        >
+          <span>
+            {unpaid.length} impayé{unpaid.length > 1 ? 's' : ''} — <span className="font-semibold">{formatAmount(totalDue)}</span> à récupérer
+          </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[#8B9298]">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </Link>
+      )}
 
       {rows.length === 0 ? (
         <p className="pt-10 text-center text-sm text-[#5B6B72]">

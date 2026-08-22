@@ -32,10 +32,24 @@ export async function postpone(id: string, formData: FormData) {
 }
 
 export async function recordPayment(id: string, formData: FormData) {
-  const amountPaid = Number(formData.get('amount_paid') ?? 0)
+  const amount = Number(formData.get('amount') ?? 0)
+  if (!amount || amount <= 0) redirect(`/app/actions/${id}`)
 
   const supabase = await createClient()
-  await supabase.from('actions').update({ amount_paid: amountPaid }).eq('id', id)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: action } = await supabase.from('actions').select('amount_paid').eq('id', id).single()
+  if (!action) redirect(`/app/actions/${id}`)
+
+  await supabase.from('payments').insert({ user_id: user.id, action_id: id, amount })
+  await supabase
+    .from('actions')
+    .update({ amount_paid: Number(action.amount_paid) + amount })
+    .eq('id', id)
+
   revalidatePath(`/app/actions/${id}`)
-  redirect(`/app/actions/${id}`)
+  redirect(`/app/actions/${id}?paid=1`)
 }
