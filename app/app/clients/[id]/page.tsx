@@ -4,8 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { updateClient, archiveClient } from './actions'
 
-export default async function ClientProfilePage({ params }: PageProps<'/app/clients/[id]'>) {
+export default async function ClientProfilePage({ params, searchParams }: PageProps<'/app/clients/[id]'>) {
   const { id } = await params
+  const { updated } = await searchParams
   const supabase = await createClient()
 
   const { data: client } = await supabase
@@ -97,6 +98,7 @@ export default async function ClientProfilePage({ params }: PageProps<'/app/clie
         <button type="submit" className="rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
           Enregistrer
         </button>
+        {updated === '1' && <p className="text-[12.5px] text-[#3A9188]">Modifications enregistrées.</p>}
       </form>
 
       <form action={archiveClient.bind(null, id)} className="mt-6 text-center">

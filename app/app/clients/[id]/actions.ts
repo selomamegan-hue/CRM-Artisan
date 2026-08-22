@@ -14,6 +14,7 @@ export async function updateClient(id: string, formData: FormData) {
   await supabase.from('clients').update({ name, phone: phone || null, is_minimal: false }).eq('id', id)
   revalidatePath(`/app/clients/${id}`)
   revalidatePath('/app/clients')
+  redirect(`/app/clients/${id}?updated=1`)
 }
 
 export async function archiveClient(id: string) {
