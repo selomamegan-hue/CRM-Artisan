@@ -7,7 +7,7 @@ import { formatAmount } from '@/lib/currency'
 import { whatsappLink } from '@/lib/whatsapp'
 import { planHasFeature } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
-import { markDone, cancelAction, postpone, recordPayment } from './actions'
+import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem } from './actions'
 import { PaymentReceipt } from './receipt'
 import { UpsellBanner } from '@/components/UpsellBanner'
 
@@ -20,15 +20,16 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: action }, { data: payments }, { data: profile }, plan] = await Promise.all([
+  const [{ data: action }, { data: payments }, { data: profile }, plan, { data: devisItems }] = await Promise.all([
     supabase
       .from('actions')
-      .select('id, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript, site)')
+      .select('id, type, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript, site)')
       .eq('id', id)
       .single(),
     supabase.from('payments').select('id, amount, created_at').eq('action_id', id).order('created_at', { ascending: false }),
     supabase.from('profiles').select('full_name').eq('id', user!.id).single(),
     getUserPlan(),
+    supabase.from('devis_items').select('id, description, quantity, unit_price').eq('action_id', id).order('position'),
   ])
 
   if (!action) notFound()
@@ -41,6 +42,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   const canUseSignature = planHasFeature(plan, 'custom_signature')
   const signature = canUseSignature ? profile?.full_name?.trim() || null : null
   const canTrackPayments = planHasFeature(plan, 'payments')
+  const canUseDevisPdf = planHasFeature(plan, 'devis_pdf')
 
   const receiptMessage =
     paid === '1' && lastPayment && client
@@ -110,6 +112,76 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
           </>
         )}
       </div>
+
+      {action.type === 'devis' && canUseDevisPdf && (
+        <div className="mt-3 rounded-xl bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Lignes du devis</span>
+            <a
+              href={`/api/actions/${action.id}/devis-pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[12.5px] font-semibold text-[#1A5F7A] underline underline-offset-2"
+            >
+              Télécharger le PDF
+            </a>
+          </div>
+
+          {devisItems && devisItems.length > 0 && (
+            <div className="mb-3 flex flex-col gap-2">
+              {devisItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-2 text-[13px]">
+                  <span className="min-w-0 flex-1 truncate text-[#22303A]">
+                    {item.description} <span className="text-[#8B9298]">× {item.quantity}</span>
+                  </span>
+                  <span className="shrink-0 font-semibold text-[#22303A]">{formatAmount(item.quantity * item.unit_price)}</span>
+                  <form action={removeDevisItem.bind(null, action.id, item.id)}>
+                    <button type="submit" aria-label="Retirer cette ligne" className="shrink-0 text-[#C96A3D]">
+                      ✕
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <form action={addDevisItem.bind(null, action.id)} className="flex flex-col gap-2">
+            <input
+              name="description"
+              placeholder="Description (ex : Tableau électrique)"
+              required
+              className="rounded border border-[#22303A]/20 bg-white px-3 py-2 text-[13px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
+            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                step="1"
+                name="quantity"
+                defaultValue="1"
+                placeholder="Qté"
+                className="w-20 min-w-0 rounded border border-[#22303A]/20 bg-white px-3 py-2 text-[13px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
+              />
+              <input
+                type="number"
+                step="1"
+                name="unit_price"
+                placeholder="Prix unitaire"
+                required
+                className="w-full min-w-0 rounded border border-[#22303A]/20 bg-white px-3 py-2 text-[13px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
+              />
+              <button type="submit" className="shrink-0 rounded border border-[#22303A]/25 px-3 py-2 text-[13px] font-semibold text-[#22303A]">
+                Ajouter
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {action.type === 'devis' && !canUseDevisPdf && (
+        <div className="mt-3">
+          <UpsellBanner text="Devis PDF détaillé avec lignes et en-tête" plan="Gold" />
+        </div>
+      )}
 
       {action.amount != null && canTrackPayments && (
         <>

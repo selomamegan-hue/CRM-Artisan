@@ -58,3 +58,57 @@ export async function recordPayment(id: string, formData: FormData) {
   revalidatePath(`/app/actions/${id}`)
   redirect(`/app/actions/${id}?paid=1`)
 }
+
+export async function addDevisItem(id: string, formData: FormData) {
+  const description = String(formData.get('description') ?? '').trim()
+  const quantity = Number(formData.get('quantity') ?? 1)
+  const unitPrice = Number(formData.get('unit_price') ?? 0)
+  if (!description || !unitPrice) redirect(`/app/actions/${id}`)
+
+  const plan = await getUserPlan()
+  if (!planHasFeature(plan, 'devis_pdf')) redirect('/app/choisir-offre')
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { count } = await supabase
+    .from('devis_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('action_id', id)
+
+  await supabase.from('devis_items').insert({
+    user_id: user.id,
+    action_id: id,
+    description,
+    quantity,
+    unit_price: unitPrice,
+    position: count ?? 0,
+  })
+
+  const { data: items } = await supabase.from('devis_items').select('quantity, unit_price').eq('action_id', id)
+  const total = (items ?? []).reduce((sum, i) => sum + Number(i.quantity) * Number(i.unit_price), 0)
+  await supabase.from('actions').update({ amount: total }).eq('id', id)
+
+  revalidatePath(`/app/actions/${id}`)
+  redirect(`/app/actions/${id}`)
+}
+
+export async function removeDevisItem(id: string, itemId: string) {
+  const plan = await getUserPlan()
+  if (!planHasFeature(plan, 'devis_pdf')) redirect('/app/choisir-offre')
+
+  const supabase = await createClient()
+  await supabase.from('devis_items').delete().eq('id', itemId)
+
+  const { data: items } = await supabase.from('devis_items').select('quantity, unit_price').eq('action_id', id)
+  const total = (items ?? []).reduce((sum, i) => sum + Number(i.quantity) * Number(i.unit_price), 0)
+  if (items && items.length > 0) {
+    await supabase.from('actions').update({ amount: total }).eq('id', id)
+  }
+
+  revalidatePath(`/app/actions/${id}`)
+  redirect(`/app/actions/${id}`)
+}
