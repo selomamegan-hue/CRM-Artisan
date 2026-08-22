@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { fraunces } from '@/lib/fonts'
 
-type Stage = 'idle' | 'recording' | 'processing' | 'error'
+type Stage = 'idle' | 'recording' | 'processing' | 'error' | 'quota'
 
 export default function RecordPage() {
   const router = useRouter()
@@ -83,6 +83,10 @@ export default function RecordPage() {
         const data = await res.json()
 
         if (!res.ok) {
+          if (data.error === 'quota_exceeded') {
+            setStage('quota')
+            return
+          }
           throw new Error(data.error || 'unknown')
         }
 
@@ -176,6 +180,22 @@ export default function RecordPage() {
             onClick={goToManualEntry}
             className="text-sm text-[#F7F3EC]/50 underline underline-offset-2"
           >
+            Saisir la note manuellement
+          </button>
+        </>
+      )}
+
+      {stage === 'quota' && (
+        <>
+          <p className={`${fraunces.className} text-xl text-[#F7F3EC]`}>Quota atteint</p>
+          <p className="max-w-xs text-sm text-[#F7F3EC]/60">
+            Tu as utilisé toutes tes notes vocales du mois sur l&apos;offre Pro. Passe à Premium pour des notes vocales
+            illimitées, ou continue en saisie manuelle.
+          </p>
+          <Link href="/app/choisir-offre" className="mt-2 rounded-full bg-[#D97B4F] px-6 py-2.5 text-sm font-bold text-white">
+            Voir les offres
+          </Link>
+          <button onClick={goToManualEntry} className="text-sm text-[#F7F3EC]/50 underline underline-offset-2">
             Saisir la note manuellement
           </button>
         </>

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { openai } from '@/lib/openai'
 import { findBestClientMatch } from '@/lib/client-match'
+import { voiceNoteMonthlyLimit } from '@/lib/plans'
+import { getUserPlan } from '@/lib/plans-server'
 
 const WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 
@@ -33,6 +35,23 @@ export async function POST(request: Request) {
 
   if (!(audio instanceof File)) {
     return NextResponse.json({ error: 'missing_audio' }, { status: 400 })
+  }
+
+  const plan = await getUserPlan()
+  const limit = voiceNoteMonthlyLimit(plan)
+
+  if (limit != null) {
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+    const { count } = await supabase
+      .from('notes')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('source', 'voice')
+      .gte('created_at', startOfMonth)
+
+    if ((count ?? 0) >= limit) {
+      return NextResponse.json({ error: 'quota_exceeded', limit }, { status: 403 })
+    }
   }
 
   let transcript: string

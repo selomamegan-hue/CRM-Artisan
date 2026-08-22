@@ -2,6 +2,9 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatAmount } from '@/lib/currency'
 import { dueLabel } from '@/lib/urgency'
+import { planHasFeature } from '@/lib/plans'
+import { getUserPlan } from '@/lib/plans-server'
+import { UpsellBanner } from '@/components/UpsellBanner'
 
 type ActionRow = {
   id: string
@@ -14,6 +17,22 @@ type ActionRow = {
 
 export default async function ImpayesPage() {
   const supabase = await createClient()
+  const plan = await getUserPlan()
+
+  if (!planHasFeature(plan, 'payments')) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-6 md:max-w-lg md:px-10 md:pt-10">
+        <Link href="/app/clients" className="mb-2 flex items-center gap-1.5 text-sm font-bold text-[#22303A]">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Clients
+        </Link>
+        <h1 className="mb-4 text-2xl font-semibold text-[#22303A]">Impayés</h1>
+        <UpsellBanner text="Vue Impayés sur tous les clients" plan="Premium" />
+      </div>
+    )
+  }
 
   const { data: actions } = await supabase
     .from('actions')

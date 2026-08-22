@@ -2,16 +2,23 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
+import { planHasFeature } from '@/lib/plans'
+import { getUserPlan } from '@/lib/plans-server'
 
 export default async function ClientsPage() {
   const supabase = await createClient()
-  const [{ data: clients }, { data: unpaidActions }] = await Promise.all([
+  const plan = await getUserPlan()
+  const canTrackPayments = planHasFeature(plan, 'payments')
+
+  const [{ data: clients }, unpaidActionsResult] = await Promise.all([
     supabase.from('clients').select('id, name, phone, is_minimal').is('archived_at', null).order('name', { ascending: true }),
-    supabase.from('actions').select('amount, amount_paid').not('amount', 'is', null).neq('status', 'annule'),
+    canTrackPayments
+      ? supabase.from('actions').select('amount, amount_paid').not('amount', 'is', null).neq('status', 'annule')
+      : Promise.resolve({ data: null }),
   ])
 
   const rows = clients ?? []
-  const unpaid = (unpaidActions ?? []).filter((a) => a.amount != null && a.amount > a.amount_paid)
+  const unpaid = (unpaidActionsResult.data ?? []).filter((a) => a.amount != null && a.amount > a.amount_paid)
   const totalDue = unpaid.reduce((sum, a) => sum + (a.amount - a.amount_paid), 0)
 
   return (

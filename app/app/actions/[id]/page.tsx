@@ -5,8 +5,11 @@ import { fraunces } from '@/lib/fonts'
 import { dueLabel } from '@/lib/urgency'
 import { formatAmount } from '@/lib/currency'
 import { whatsappLink } from '@/lib/whatsapp'
+import { planHasFeature } from '@/lib/plans'
+import { getUserPlan } from '@/lib/plans-server'
 import { markDone, cancelAction, postpone, recordPayment } from './actions'
 import { PaymentReceipt } from './receipt'
+import { UpsellBanner } from '@/components/UpsellBanner'
 
 export default async function ActionDetailPage({ params, searchParams }: PageProps<'/app/actions/[id]'>) {
   const { id } = await params
@@ -17,7 +20,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: action }, { data: payments }, { data: profile }] = await Promise.all([
+  const [{ data: action }, { data: payments }, { data: profile }, plan] = await Promise.all([
     supabase
       .from('actions')
       .select('id, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript, site)')
@@ -25,6 +28,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
       .single(),
     supabase.from('payments').select('id, amount, created_at').eq('action_id', id).order('created_at', { ascending: false }),
     supabase.from('profiles').select('full_name').eq('id', user!.id).single(),
+    getUserPlan(),
   ])
 
   if (!action) notFound()
@@ -34,7 +38,9 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   const note = action.notes as unknown as { transcript: string; site: string | null } | null
   const balance = action.amount != null ? action.amount - action.amount_paid : null
   const lastPayment = payments?.[0]
-  const signature = profile?.full_name?.trim() || null
+  const canUseSignature = planHasFeature(plan, 'custom_signature')
+  const signature = canUseSignature ? profile?.full_name?.trim() || null : null
+  const canTrackPayments = planHasFeature(plan, 'payments')
 
   const receiptMessage =
     paid === '1' && lastPayment && client
@@ -105,7 +111,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
         )}
       </div>
 
-      {action.amount != null && (
+      {action.amount != null && canTrackPayments && (
         <>
           <form action={recordPayment.bind(null, action.id)} className="mt-3 flex items-center gap-2">
             <input
@@ -136,6 +142,12 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
             </div>
           )}
         </>
+      )}
+
+      {action.amount != null && !canTrackPayments && (
+        <div className="mt-3">
+          <UpsellBanner text="Suivi des acomptes et des paiements" plan="Premium" />
+        </div>
       )}
 
       {note?.transcript && (

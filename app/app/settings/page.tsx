@@ -3,6 +3,9 @@ import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
 import { signOut, submitFeedback, updateProfileName } from '../actions'
 import { subscriptionStatus, subscriptionLabel, SUBSCRIPTION_STYLE, SUBSCRIPTION_DOT } from '@/lib/subscription'
+import { planHasFeature, PLAN_LABEL } from '@/lib/plans'
+import { getUserPlan } from '@/lib/plans-server'
+import { UpsellBanner } from '@/components/UpsellBanner'
 
 export default async function SettingsPage({ searchParams }: PageProps<'/app/settings'>) {
   const { feedback, name_updated } = await searchParams
@@ -10,20 +13,28 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  const [{ data: profile }, { data: factureActions }] = await Promise.all([
+  const plan = await getUserPlan()
+  const canSeeDashboard = planHasFeature(plan, 'dashboard')
+
+  const [{ data: profile }, factureActionsResult] = await Promise.all([
     supabase.from('profiles').select('full_name, phone, whatsapp, subscription_expires_at').eq('id', user!.id).single(),
-    supabase.from('actions').select('amount, amount_paid').eq('type', 'facture').neq('status', 'annule').not('amount', 'is', null),
+    canSeeDashboard
+      ? supabase.from('actions').select('amount, amount_paid').eq('type', 'facture').neq('status', 'annule').not('amount', 'is', null)
+      : Promise.resolve({ data: null }),
   ])
 
-  const totalFacture = (factureActions ?? []).reduce((sum, a) => sum + (a.amount ?? 0), 0)
-  const totalCollecte = (factureActions ?? []).reduce((sum, a) => sum + (a.amount_paid ?? 0), 0)
+  const totalFacture = (factureActionsResult.data ?? []).reduce((sum, a) => sum + (a.amount ?? 0), 0)
+  const totalCollecte = (factureActionsResult.data ?? []).reduce((sum, a) => sum + (a.amount_paid ?? 0), 0)
 
   const name = profile?.full_name?.trim() || 'Sans nom'
   const initial = (profile?.full_name?.trim()?.[0] ?? user?.email?.[0] ?? '?').toUpperCase()
 
   const today = new Date()
   const status = subscriptionStatus(profile?.subscription_expires_at ?? null, today)
-  const statusLabel = subscriptionLabel(profile?.subscription_expires_at ?? null, today)
+  const statusLabel =
+    status === 'inconnu'
+      ? subscriptionLabel(profile?.subscription_expires_at ?? null, today)
+      : `${PLAN_LABEL[plan]} — ${subscriptionLabel(profile?.subscription_expires_at ?? null, today)}`
 
   const rows = [
     { label: 'Téléphone', value: profile?.phone || '—' },
@@ -74,20 +85,24 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
 
       <div className="mt-6">
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Activité (factures)</p>
-        <div className="flex gap-2.5">
-          <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-            <span className="block text-[15px] font-bold text-[#22303A]">{formatAmount(totalFacture)}</span>
-            <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Facturé</span>
+        {canSeeDashboard ? (
+          <div className="flex gap-2.5">
+            <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+              <span className="block text-[15px] font-bold text-[#22303A]">{formatAmount(totalFacture)}</span>
+              <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Facturé</span>
+            </div>
+            <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+              <span className="block text-[15px] font-bold text-[#3A9188]">{formatAmount(totalCollecte)}</span>
+              <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Collecté</span>
+            </div>
+            <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+              <span className="block text-[15px] font-bold text-[#D97B4F]">{formatAmount(totalFacture - totalCollecte)}</span>
+              <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Restant dû</span>
+            </div>
           </div>
-          <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-            <span className="block text-[15px] font-bold text-[#3A9188]">{formatAmount(totalCollecte)}</span>
-            <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Collecté</span>
-          </div>
-          <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-            <span className="block text-[15px] font-bold text-[#D97B4F]">{formatAmount(totalFacture - totalCollecte)}</span>
-            <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Restant dû</span>
-          </div>
-        </div>
+        ) : (
+          <UpsellBanner text="Tableau de bord facturé vs collecté" plan="Gold" />
+        )}
       </div>
 
       <div className="mt-6">

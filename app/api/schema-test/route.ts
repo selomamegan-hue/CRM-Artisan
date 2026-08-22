@@ -12,6 +12,8 @@ const CHECKS = [
   { table: 'feedback', columns: 'id, user_id, message, created_at' },
   { table: 'notes', columns: 'id, site' },
   { table: 'payments', columns: 'id, user_id, action_id, amount, created_at' },
+  { table: 'profiles', columns: 'id, subscription_plan' },
+  { table: 'notes', columns: 'id, source' },
 ] as const
 
 export async function GET() {

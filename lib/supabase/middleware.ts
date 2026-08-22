@@ -44,5 +44,25 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  const EXEMPT_FROM_PLAN_GATE = ['/app/choisir-offre', '/app/settings']
+  const needsActivePlan = user && pathname.startsWith('/app') && !EXEMPT_FROM_PLAN_GATE.includes(pathname)
+
+  if (needsActivePlan) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscription_expires_at')
+      .eq('id', user.id)
+      .single()
+
+    const expiresAt = profile?.subscription_expires_at
+    const expired = expiresAt && new Date(expiresAt).getTime() < Date.now()
+
+    if (expired) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/app/choisir-offre'
+      return NextResponse.redirect(url)
+    }
+  }
+
   return supabaseResponse
 }

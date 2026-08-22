@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { planHasFeature } from '@/lib/plans'
+import { getUserPlan } from '@/lib/plans-server'
 
 export async function markDone(id: string) {
   const supabase = await createClient()
@@ -34,6 +36,9 @@ export async function postpone(id: string, formData: FormData) {
 export async function recordPayment(id: string, formData: FormData) {
   const amount = Number(formData.get('amount') ?? 0)
   if (!amount || amount <= 0) redirect(`/app/actions/${id}`)
+
+  const plan = await getUserPlan()
+  if (!planHasFeature(plan, 'payments')) redirect('/app/choisir-offre')
 
   const supabase = await createClient()
   const {
