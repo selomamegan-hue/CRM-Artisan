@@ -109,6 +109,15 @@ export default function ReviewPage() {
         </div>
 
         <div>
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Chantier (optionnel)</p>
+          <input
+            name="site"
+            placeholder="Ex : Villa Agoè"
+            className="w-full rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
+          />
+        </div>
+
+        <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Client</p>
           {!isNewClient ? (
             <>

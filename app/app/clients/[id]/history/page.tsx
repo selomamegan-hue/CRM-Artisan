@@ -27,6 +27,7 @@ const STATUS_LABEL: Record<ActionStatus, string> = {
 type NoteRow = {
   id: string
   transcript: string
+  site: string | null
   created_at: string
   actions: { id: string; type: ActionType; status: ActionStatus; excerpt: string }[]
 }
@@ -40,7 +41,7 @@ export default async function ClientHistoryPage({ params }: PageProps<'/app/clie
 
   const { data: notes } = await supabase
     .from('notes')
-    .select('id, transcript, created_at, actions(id, type, status, excerpt)')
+    .select('id, transcript, site, created_at, actions(id, type, status, excerpt)')
     .eq('client_id', id)
     .order('created_at', { ascending: false })
     .returns<NoteRow[]>()
@@ -66,6 +67,7 @@ export default async function ClientHistoryPage({ params }: PageProps<'/app/clie
               <span className="absolute -left-[19px] top-1 h-[7px] w-[7px] rounded-full bg-[#3A9188]" />
               <p className="text-[10px] font-bold uppercase tracking-[0.03em] text-[#8B9298]">
                 {new Date(note.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {note.site && <span className="normal-case text-[#1A5F7A]"> · {note.site}</span>}
               </p>
               <p className="mt-1 text-[13.5px] leading-relaxed text-[#22303A]">{note.transcript}</p>
               {note.actions.length > 0 && (

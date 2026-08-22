@@ -12,6 +12,7 @@ export async function confirmNote(formData: FormData) {
   if (!user) redirect('/login')
 
   const transcript = String(formData.get('transcript') ?? '').trim()
+  const site = String(formData.get('site') ?? '').trim()
   const clientId = String(formData.get('client_id') ?? '')
   const newClientName = String(formData.get('new_client_name') ?? '').trim()
   const type = String(formData.get('type') ?? 'autre') as ActionType
@@ -40,6 +41,7 @@ export async function confirmNote(formData: FormData) {
       user_id: user.id,
       client_id: finalClientId,
       transcript,
+      site: site || null,
       status: 'confirmee',
     })
     .select('id')

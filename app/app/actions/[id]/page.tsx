@@ -12,7 +12,7 @@ export default async function ActionDetailPage({ params }: PageProps<'/app/actio
 
   const { data: action } = await supabase
     .from('actions')
-    .select('id, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript)')
+    .select('id, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript, site)')
     .eq('id', id)
     .single()
 
@@ -20,7 +20,7 @@ export default async function ActionDetailPage({ params }: PageProps<'/app/actio
 
   const today = new Date()
   const client = action.clients as unknown as { name: string; phone: string | null } | null
-  const note = action.notes as unknown as { transcript: string } | null
+  const note = action.notes as unknown as { transcript: string; site: string | null } | null
 
   return (
     <div className="mx-auto flex max-w-md flex-col px-6 pb-10 pt-6 md:max-w-lg md:px-10 md:pt-10">
@@ -90,9 +90,12 @@ export default async function ActionDetailPage({ params }: PageProps<'/app/actio
       )}
 
       {note?.transcript && (
-        <p className={`${fraunces.className} mt-5 border-l-2 border-[#3A9188] pl-3.5 text-[15px] italic leading-relaxed text-[#22303A]`}>
-          {note.transcript}
-        </p>
+        <div className="mt-5 border-l-2 border-[#3A9188] pl-3.5">
+          {note.site && (
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#1A5F7A]">{note.site}</p>
+          )}
+          <p className={`${fraunces.className} text-[15px] italic leading-relaxed text-[#22303A]`}>{note.transcript}</p>
+        </div>
       )}
 
       <div className="mt-6 flex gap-2.5">
