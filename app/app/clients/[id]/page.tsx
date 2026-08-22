@@ -6,7 +6,7 @@ import { updateClient, archiveClient } from './actions'
 
 export default async function ClientProfilePage({ params, searchParams }: PageProps<'/app/clients/[id]'>) {
   const { id } = await params
-  const { updated } = await searchParams
+  const { updated, archive_blocked } = await searchParams
   const supabase = await createClient()
 
   const { data: client } = await supabase
@@ -106,6 +106,12 @@ export default async function ClientProfilePage({ params, searchParams }: PagePr
           Archiver ce client
         </button>
         <p className="mt-1.5 text-[11.5px] text-[#8B9298]">Il sort de la liste, mais son historique reste intact.</p>
+        {archive_blocked === '1' && (
+          <p className="mt-2 text-[12.5px] text-[#C96A3D]">
+            Impossible d&apos;archiver : ce client a un chantier en cours ou un solde impayé. Marque les actions comme
+            faites et encaisse le solde restant d&apos;abord.
+          </p>
+        )}
       </form>
     </div>
   )

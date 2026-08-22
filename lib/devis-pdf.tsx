@@ -37,6 +37,7 @@ function formatFcfa(value: number): string {
 export type DevisItem = { description: string; quantity: number; unit_price: number }
 
 export type DevisPdfData = {
+  number: string
   companyName: string
   companyPhone: string | null
   companyWhatsapp: string | null
@@ -61,7 +62,7 @@ function DevisDocument({ data }: { data: DevisPdfData }) {
             {data.companyWhatsapp && <Text style={styles.small}>WhatsApp : {data.companyWhatsapp}</Text>}
           </View>
           <View>
-            <Text style={styles.title}>DEVIS</Text>
+            <Text style={styles.title}>DEVIS {data.number}</Text>
             <Text style={styles.meta}>{data.date}</Text>
           </View>
         </View>

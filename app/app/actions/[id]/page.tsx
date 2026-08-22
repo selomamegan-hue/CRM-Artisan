@@ -20,7 +20,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: action }, { data: payments }, { data: profile }, plan, { data: devisItems }] = await Promise.all([
+  const [{ data: action }, { data: payments }, { data: profile }, plan] = await Promise.all([
     supabase
       .from('actions')
       .select('id, type, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript, site)')
@@ -29,10 +29,32 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
     supabase.from('payments').select('id, amount, created_at').eq('action_id', id).order('created_at', { ascending: false }),
     supabase.from('profiles').select('full_name').eq('id', user!.id).single(),
     getUserPlan(),
-    supabase.from('devis_items').select('id, description, quantity, unit_price').eq('action_id', id).order('position'),
   ])
 
   if (!action) notFound()
+
+  let devisVersion: { number: string; status: string } | null = null
+  let devisItems: { id: string; description: string; quantity: number; unit_price: number }[] = []
+
+  if (action.type === 'devis') {
+    const { data: version } = await supabase
+      .from('devis_versions')
+      .select('id, number, status')
+      .eq('action_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (version) {
+      devisVersion = { number: version.number, status: version.status }
+      const { data: items } = await supabase
+        .from('devis_items')
+        .select('id, description, quantity, unit_price')
+        .eq('version_id', version.id)
+        .order('position')
+      devisItems = items ?? []
+    }
+  }
 
   const today = new Date()
   const client = action.clients as unknown as { name: string; phone: string | null } | null
@@ -127,6 +149,21 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
             </a>
           </div>
 
+          {devisVersion && (
+            <p className="mb-2 text-[12px] text-[#8B9298]">
+              {devisVersion.status === 'envoye' ? (
+                <>
+                  Devis <span className="font-semibold text-[#22303A]">{devisVersion.number}</span> envoyé — le modifier
+                  créera une nouvelle version.
+                </>
+              ) : (
+                <>
+                  Brouillon <span className="font-semibold text-[#22303A]">{devisVersion.number}</span> — pas encore envoyé.
+                </>
+              )}
+            </p>
+          )}
+
           {devisItems && devisItems.length > 0 && (
             <div className="mb-3 flex flex-col gap-2">
               {devisItems.map((item) => (
@@ -156,6 +193,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
               <input
                 type="number"
                 step="1"
+                min="1"
                 name="quantity"
                 defaultValue="1"
                 placeholder="Qté"
@@ -164,8 +202,9 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
               <input
                 type="number"
                 step="1"
+                min="0"
                 name="unit_price"
-                placeholder="Prix unitaire"
+                placeholder="Prix unitaire (0 = offert)"
                 required
                 className="w-full min-w-0 rounded border border-[#22303A]/20 bg-white px-3 py-2 text-[13px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
               />
