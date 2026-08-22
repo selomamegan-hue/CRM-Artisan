@@ -5,8 +5,9 @@ import { fraunces } from '@/lib/fonts'
 import { dueLabel } from '@/lib/urgency'
 import { formatAmount } from '@/lib/currency'
 import { whatsappLink } from '@/lib/whatsapp'
-import { planHasFeature } from '@/lib/plans'
+import { planHasFeature, devisMonthlyLimit } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
+import { countDevisSentThisMonth } from '@/lib/devis-versions'
 import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem } from './actions'
 import { PaymentReceipt } from './receipt'
 import { UpsellBanner } from '@/components/UpsellBanner'
@@ -65,6 +66,15 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   const signature = canUseSignature ? profile?.full_name?.trim() || null : null
   const canTrackPayments = planHasFeature(plan, 'payments')
   const canUseDevisPdf = planHasFeature(plan, 'devis_pdf')
+
+  const isNewDevisSend = !devisVersion || devisVersion.status === 'brouillon'
+  const monthlyLimit = devisMonthlyLimit(plan)
+  let devisRemaining: number | null = null
+  if (canUseDevisPdf && action.type === 'devis' && isNewDevisSend && monthlyLimit != null) {
+    const used = await countDevisSentThisMonth(supabase, user!.id)
+    devisRemaining = monthlyLimit - used
+  }
+  const devisQuotaExhausted = devisRemaining != null && devisRemaining <= 0
 
   const receiptMessage =
     paid === '1' && lastPayment && client
@@ -139,14 +149,18 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
         <div className="mt-3 rounded-xl bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Lignes du devis</span>
-            <a
-              href={`/api/actions/${action.id}/devis-pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[12.5px] font-semibold text-[#1A5F7A] underline underline-offset-2"
-            >
-              Télécharger le PDF
-            </a>
+            {devisQuotaExhausted ? (
+              <span className="text-[12.5px] font-semibold text-[#8B9298]">PDF indisponible</span>
+            ) : (
+              <a
+                href={`/api/actions/${action.id}/devis-pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[12.5px] font-semibold text-[#1A5F7A] underline underline-offset-2"
+              >
+                Télécharger le PDF
+              </a>
+            )}
           </div>
 
           {devisVersion && (
@@ -162,6 +176,18 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
                 </>
               )}
             </p>
+          )}
+
+          {devisRemaining != null && !devisQuotaExhausted && (
+            <p className="mb-2 text-[12px] text-[#8B9298]">
+              {devisRemaining} devis à envoyer ce mois-ci (offre Premium).
+            </p>
+          )}
+
+          {devisQuotaExhausted && (
+            <div className="mb-3">
+              <UpsellBanner text="Quota de devis envoyés atteint ce mois-ci" plan="Gold (illimité)" />
+            </div>
           )}
 
           {devisItems && devisItems.length > 0 && (

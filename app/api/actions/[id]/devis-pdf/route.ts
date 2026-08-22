@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserPlan } from '@/lib/plans-server'
-import { planHasFeature } from '@/lib/plans'
+import { planHasFeature, devisMonthlyLimit } from '@/lib/plans'
 import { renderDevisPdf } from '@/lib/devis-pdf'
-import { getOrCreateDraftVersion } from '@/lib/devis-versions'
+import { getOrCreateDraftVersion, countDevisSentThisMonth } from '@/lib/devis-versions'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -43,6 +43,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .maybeSingle()
 
   if (!version || version.status === 'brouillon') {
+    const limit = devisMonthlyLimit(plan)
+    if (limit != null) {
+      const used = await countDevisSentThisMonth(supabase, user.id)
+      if (used >= limit) {
+        return NextResponse.json({ error: 'devis_quota_exceeded', limit }, { status: 403 })
+      }
+    }
+
     const versionId = version ? version.id : await getOrCreateDraftVersion(supabase, user.id, id)
     const { data: locked } = await supabase
       .from('devis_versions')

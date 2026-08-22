@@ -14,7 +14,7 @@ export type Feature = 'payments' | 'chantier' | 'dashboard' | 'custom_signature'
 const PLAN_FEATURES: Record<Plan, Feature[]> = {
   essai: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf'],
   pro: [],
-  premium: ['payments', 'chantier'],
+  premium: ['payments', 'chantier', 'devis_pdf'],
   gold: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf'],
 }
 
@@ -30,4 +30,13 @@ const VOICE_NOTE_MONTHLY_LIMIT: Partial<Record<Plan, number>> = {
 
 export function voiceNoteMonthlyLimit(plan: Plan): number | null {
   return VOICE_NOTE_MONTHLY_LIMIT[plan] ?? null
+}
+
+// Devis PDF envoyés — Premium a un avant-goût plafonné, Gold est illimité.
+const DEVIS_MONTHLY_LIMIT: Partial<Record<Plan, number>> = {
+  premium: 5,
+}
+
+export function devisMonthlyLimit(plan: Plan): number | null {
+  return DEVIS_MONTHLY_LIMIT[plan] ?? null
 }

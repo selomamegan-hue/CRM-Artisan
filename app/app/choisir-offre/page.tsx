@@ -20,12 +20,14 @@ const PLAN_PITCH: Record<Exclude<Plan, 'essai'>, { tagline: string; features: st
       'Message de confirmation prêt à envoyer',
       'Vue Impayés sur tous les clients',
       'Chantiers multiples par client',
+      'Devis PDF détaillé (5 envoyés par mois)',
     ],
   },
   gold: {
     tagline: 'La vue d’ensemble et l’image professionnelle',
     features: [
       'Tout Premium',
+      'Devis PDF détaillé illimité',
       'Tableau de bord facturé vs collecté',
       'Signature personnalisée (ton nom ou celui de ton entreprise) sur les messages clients',
       'Accès prioritaire aux nouvelles fonctionnalités',

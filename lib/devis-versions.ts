@@ -68,3 +68,14 @@ export async function recomputeActionAmount(supabase: SupabaseClient, actionId: 
   const total = (items ?? []).reduce((sum, i) => sum + Number(i.quantity) * Number(i.unit_price), 0)
   await supabase.from('actions').update({ amount: total }).eq('id', actionId)
 }
+
+export async function countDevisSentThisMonth(supabase: SupabaseClient, userId: string): Promise<number> {
+  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+  const { count } = await supabase
+    .from('devis_versions')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('status', 'envoye')
+    .gte('sent_at', startOfMonth)
+  return count ?? 0
+}
