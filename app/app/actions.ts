@@ -9,6 +9,19 @@ export async function signOut() {
   redirect('/login')
 }
 
+export async function updateProfileName(formData: FormData) {
+  const fullName = String(formData.get('full_name') ?? '').trim()
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  await supabase.from('profiles').update({ full_name: fullName || null }).eq('id', user.id)
+  redirect('/app/settings?name_updated=1')
+}
+
 export async function submitFeedback(formData: FormData) {
   const message = String(formData.get('message') ?? '').trim()
   if (!message) redirect('/app/settings')

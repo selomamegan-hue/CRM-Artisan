@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { dueLabel } from '@/lib/urgency'
 import { formatAmount } from '@/lib/currency'
+import { whatsappLink } from '@/lib/whatsapp'
 import { markDone, cancelAction, postpone, recordPayment } from './actions'
 import { PaymentReceipt } from './receipt'
 
@@ -12,29 +13,32 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   const { paid } = await searchParams
   const supabase = await createClient()
 
-  const { data: action } = await supabase
-    .from('actions')
-    .select('id, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript, site)')
-    .eq('id', id)
-    .single()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const [{ data: action }, { data: payments }, { data: profile }] = await Promise.all([
+    supabase
+      .from('actions')
+      .select('id, due_date, excerpt, amount, amount_paid, status, clients(name, phone), notes(transcript, site)')
+      .eq('id', id)
+      .single(),
+    supabase.from('payments').select('id, amount, created_at').eq('action_id', id).order('created_at', { ascending: false }),
+    supabase.from('profiles').select('full_name').eq('id', user!.id).single(),
+  ])
 
   if (!action) notFound()
-
-  const { data: payments } = await supabase
-    .from('payments')
-    .select('id, amount, created_at')
-    .eq('action_id', id)
-    .order('created_at', { ascending: false })
 
   const today = new Date()
   const client = action.clients as unknown as { name: string; phone: string | null } | null
   const note = action.notes as unknown as { transcript: string; site: string | null } | null
   const balance = action.amount != null ? action.amount - action.amount_paid : null
   const lastPayment = payments?.[0]
+  const signature = profile?.full_name?.trim() || null
 
   const receiptMessage =
     paid === '1' && lastPayment && client
-      ? `Bonjour ${client.name}, j'ai bien reçu votre paiement de ${formatAmount(lastPayment.amount)} pour ${action.excerpt}. Solde restant : ${formatAmount(balance ?? 0)}. Merci, Marc.`
+      ? `Bonjour ${client.name}, nous avons bien reçu votre paiement de ${formatAmount(lastPayment.amount)} pour ${action.excerpt}. Solde restant : ${formatAmount(balance ?? 0)}. Merci${signature ? `, ${signature}` : ''}.`
       : null
 
   return (
@@ -59,6 +63,19 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M6.5 4h3l1.5 4.5-2 1.5a11 11 0 005 5l1.5-2 4.5 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 6.2 2 2 0 016.5 4z" />
+                </svg>
+              </a>
+            )}
+            {client?.phone && (
+              <a
+                href={whatsappLink(client.phone)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Écrire à ${client.name} sur WhatsApp`}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-[#3A9188]/[0.13] text-[#3A9188]"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2a10 10 0 00-8.6 15.1L2 22l5.1-1.3A10 10 0 1012 2zm5.6 14.3c-.2.6-1.3 1.2-1.9 1.3-.5.1-1.1.1-1.8-.1-.4-.1-1-.3-1.6-.6-2.9-1.2-4.7-4.2-4.9-4.4-.1-.2-1.2-1.6-1.2-3s.8-2.2 1-2.5c.3-.3.6-.4.8-.4h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.1.2-.2.3-.1.5.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.2.1.4.1.5-.1l.7-.8c.2-.3.4-.2.6-.1l1.9.9c.2.1.4.2.4.4.1.2.1.9-.2 1.5z" />
                 </svg>
               </a>
             )}

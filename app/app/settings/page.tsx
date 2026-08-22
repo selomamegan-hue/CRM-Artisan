@@ -1,11 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
-import { signOut, submitFeedback } from '../actions'
+import { signOut, submitFeedback, updateProfileName } from '../actions'
 import { subscriptionStatus, subscriptionLabel, SUBSCRIPTION_STYLE, SUBSCRIPTION_DOT } from '@/lib/subscription'
 
 export default async function SettingsPage({ searchParams }: PageProps<'/app/settings'>) {
-  const { feedback } = await searchParams
+  const { feedback, name_updated } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -26,7 +26,6 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const statusLabel = subscriptionLabel(profile?.subscription_expires_at ?? null, today)
 
   const rows = [
-    { label: 'Nom', value: profile?.full_name || '—' },
     { label: 'Téléphone', value: profile?.phone || '—' },
     { label: 'WhatsApp', value: profile?.whatsapp || '—' },
   ]
@@ -44,6 +43,24 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
           <span className={`h-[7px] w-[7px] rounded-full ${SUBSCRIPTION_DOT[status]}`} />
           {statusLabel}
         </span>
+      </div>
+
+      <div className="mb-6">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
+          Nom (apparaît en signature de tes messages)
+        </p>
+        <form action={updateProfileName} className="flex items-center gap-2">
+          <input
+            name="full_name"
+            defaultValue={profile?.full_name ?? ''}
+            placeholder="Ex : Marc Prestations SARL"
+            className="w-full rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
+          />
+          <button type="submit" className="shrink-0 rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
+            Enregistrer
+          </button>
+        </form>
+        {name_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Nom mis à jour.</p>}
       </div>
 
       <div className="rounded-xl bg-white px-4 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
