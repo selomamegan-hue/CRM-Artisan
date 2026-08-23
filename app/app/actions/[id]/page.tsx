@@ -76,10 +76,20 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   }
   const devisQuotaExhausted = devisRemaining != null && devisRemaining <= 0
 
-  const receiptMessage =
-    paid === '1' && lastPayment && client
-      ? `Bonjour ${client.name}, nous avons bien reçu votre paiement de ${formatAmount(lastPayment.amount)} pour ${action.excerpt}. Solde restant : ${formatAmount(balance ?? 0)}. Merci${signature ? `, ${signature}` : ''}.`
-      : null
+  const devisRef = devisVersion ? `Devis N°${devisVersion.number}` : null
+  const closing = signature ? `, ${signature}` : ''
+
+  let receiptMessage: string | null = null
+  if (paid === '1' && lastPayment && client) {
+    if (balance === 0) {
+      receiptMessage = devisRef
+        ? `Bonjour ${client.name}, votre ${devisRef} est maintenant soldé ! Merci${closing}.`
+        : `Bonjour ${client.name}, nous avons bien reçu votre paiement de ${formatAmount(lastPayment.amount)} pour ${action.excerpt}. Le compte est maintenant soldé. Merci${closing}.`
+    } else {
+      const forLabel = devisRef ? `${action.excerpt} (${devisRef})` : action.excerpt
+      receiptMessage = `Bonjour ${client.name}, nous avons bien reçu votre paiement de ${formatAmount(lastPayment.amount)} pour ${forLabel}. Solde restant : ${formatAmount(balance ?? 0)}. Merci${closing}.`
+    }
+  }
 
   return (
     <div className="mx-auto flex max-w-md flex-col px-6 pb-10 pt-6 md:max-w-lg md:px-10 md:pt-10">
