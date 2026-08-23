@@ -8,7 +8,7 @@ import { whatsappLink } from '@/lib/whatsapp'
 import { planHasFeature, devisMonthlyLimit } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { countDevisSentThisMonth } from '@/lib/devis-versions'
-import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem, markDevisValidated } from './actions'
+import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem, markDevisValidated, updateDevisTotals } from './actions'
 import { PaymentReceipt } from './receipt'
 import { UpsellBanner } from '@/components/UpsellBanner'
 
@@ -34,20 +34,32 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
 
   if (!action) notFound()
 
-  let devisVersion: { number: string; status: string; validated_at: string | null } | null = null
+  let devisVersion: {
+    number: string
+    status: string
+    validated_at: string | null
+    discount_amount: number
+    vat_rate: number | null
+  } | null = null
   let devisItems: { id: string; description: string; quantity: number; unit_price: number }[] = []
 
   if (action.type === 'devis') {
     const { data: version } = await supabase
       .from('devis_versions')
-      .select('id, number, status, validated_at')
+      .select('id, number, status, validated_at, discount_amount, vat_rate')
       .eq('action_id', id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     if (version) {
-      devisVersion = { number: version.number, status: version.status, validated_at: version.validated_at }
+      devisVersion = {
+        number: version.number,
+        status: version.status,
+        validated_at: version.validated_at,
+        discount_amount: Number(version.discount_amount),
+        vat_rate: version.vat_rate != null ? Number(version.vat_rate) : null,
+      }
       const { data: items } = await supabase
         .from('devis_items')
         .select('id, description, quantity, unit_price')
@@ -264,6 +276,65 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
               </button>
             </div>
           </form>
+
+          {devisItems.length > 0 && (
+            <div className="mt-3 border-t border-[#22303A]/[0.14] pt-3">
+              {(() => {
+                const subtotal = devisItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)
+                const discount = devisVersion?.discount_amount ?? 0
+                const vatRate = devisVersion?.vat_rate ?? null
+                const afterDiscount = Math.max(0, subtotal - discount)
+                const vatAmount = vatRate ? afterDiscount * (vatRate / 100) : 0
+                return (
+                  <div className="mb-3 flex flex-col gap-1 text-[13px]">
+                    <div className="flex items-center justify-between text-[#5B6B72]">
+                      <span>Sous-total</span>
+                      <span>{formatAmount(subtotal)}</span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="flex items-center justify-between text-[#5B6B72]">
+                        <span>Remise</span>
+                        <span>− {formatAmount(discount)}</span>
+                      </div>
+                    )}
+                    {vatRate != null && (
+                      <div className="flex items-center justify-between text-[#5B6B72]">
+                        <span>TVA ({vatRate} %)</span>
+                        <span>+ {formatAmount(vatAmount)}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              <form action={updateDevisTotals.bind(null, action.id)} className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 text-[12.5px] text-[#5B6B72]">Remise (FCFA)</span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    name="discount_amount"
+                    defaultValue={devisVersion?.discount_amount || ''}
+                    placeholder="0"
+                    className="w-full min-w-0 rounded border border-[#22303A]/20 bg-white px-3 py-1.5 text-[13px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-[12.5px] text-[#5B6B72]">
+                  <input
+                    type="checkbox"
+                    name="vat_applied"
+                    defaultChecked={devisVersion?.vat_rate != null}
+                    className="h-4 w-4 accent-[#1A5F7A]"
+                  />
+                  Appliquer la TVA (18 %)
+                </label>
+                <button type="submit" className="self-start rounded border border-[#22303A]/25 px-3 py-1.5 text-[12.5px] font-semibold text-[#22303A]">
+                  Mettre à jour
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       )}
 

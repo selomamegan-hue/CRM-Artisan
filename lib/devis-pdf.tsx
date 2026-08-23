@@ -21,9 +21,12 @@ const styles = StyleSheet.create({
   colPrice: { flex: 1.2, textAlign: 'right' },
   colAmount: { flex: 1.2, textAlign: 'right' },
   th: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#5B6B72', letterSpacing: 0.5 },
-  totalRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#22303A' },
-  totalLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', marginRight: 12 },
-  totalAmount: { fontSize: 13, fontFamily: 'Helvetica-Bold' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6 },
+  summaryLabel: { fontSize: 10, color: '#5B6B72', marginRight: 12, width: 110, textAlign: 'right' },
+  summaryAmount: { fontSize: 10, color: '#5B6B72', width: 90, textAlign: 'right' },
+  totalRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#22303A' },
+  totalLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', marginRight: 12, width: 110, textAlign: 'right' },
+  totalAmount: { fontSize: 13, fontFamily: 'Helvetica-Bold', width: 90, textAlign: 'right' },
   stampsRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 18 },
   stampValidated: {
     fontSize: 11,
@@ -79,11 +82,16 @@ export type DevisPdfData = {
   logo: DevisLogo | null
   validated: boolean
   paidInFull: boolean
+  discountAmount: number
+  vatRate: number | null
 }
 
 function DevisDocument({ data }: { data: DevisPdfData }) {
   const items = data.items.length > 0 ? data.items : [{ description: data.excerpt, quantity: 1, unit_price: data.amount ?? 0 }]
-  const total = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+  const afterDiscount = Math.max(0, subtotal - data.discountAmount)
+  const vatAmount = data.vatRate ? afterDiscount * (data.vatRate / 100) : 0
+  const total = afterDiscount + vatAmount
 
   return (
     <Document>
@@ -126,6 +134,24 @@ function DevisDocument({ data }: { data: DevisPdfData }) {
           ))}
         </View>
 
+        {(data.discountAmount > 0 || data.vatRate != null) && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Sous-total</Text>
+            <Text style={styles.summaryAmount}>{formatFcfa(subtotal)}</Text>
+          </View>
+        )}
+        {data.discountAmount > 0 && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Remise</Text>
+            <Text style={styles.summaryAmount}>- {formatFcfa(data.discountAmount)}</Text>
+          </View>
+        )}
+        {data.vatRate != null && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>TVA ({data.vatRate} %)</Text>
+            <Text style={styles.summaryAmount}>+ {formatFcfa(vatAmount)}</Text>
+          </View>
+        )}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>TOTAL</Text>
           <Text style={styles.totalAmount}>{formatFcfa(total)}</Text>

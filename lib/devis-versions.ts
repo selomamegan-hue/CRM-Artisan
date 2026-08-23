@@ -16,11 +16,12 @@ async function nextDevisNumber(supabase: SupabaseClient, userId: string): Promis
 export async function getOrCreateDraftVersion(
   supabase: SupabaseClient,
   userId: string,
-  actionId: string
+  actionId: string,
+  defaultVatRate?: number | null
 ): Promise<string> {
   const { data: latest } = await supabase
     .from('devis_versions')
-    .select('id, status')
+    .select('id, status, discount_amount, vat_rate')
     .eq('action_id', actionId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -33,7 +34,16 @@ export async function getOrCreateDraftVersion(
   const number = await nextDevisNumber(supabase, userId)
   const { data: draft, error } = await supabase
     .from('devis_versions')
-    .insert({ user_id: userId, action_id: actionId, number, status: 'brouillon' })
+    .insert({
+      user_id: userId,
+      action_id: actionId,
+      number,
+      status: 'brouillon',
+      // Une révision reprend la remise/TVA du devis précédent ; le tout
+      // premier brouillon part du réglage TVA par défaut du profil.
+      discount_amount: latest?.discount_amount ?? 0,
+      vat_rate: latest ? latest.vat_rate : (defaultVatRate ?? null),
+    })
     .select('id')
     .single()
   if (error || !draft) throw new Error('failed to create devis draft')
@@ -63,9 +73,19 @@ export async function getOrCreateDraftVersion(
   return draft.id
 }
 
+export function computeDevisTotal(subtotal: number, discountAmount: number, vatRate: number | null): number {
+  const afterDiscount = Math.max(0, subtotal - discountAmount)
+  const vat = vatRate ? afterDiscount * (vatRate / 100) : 0
+  return afterDiscount + vat
+}
+
 export async function recomputeActionAmount(supabase: SupabaseClient, actionId: string, versionId: string) {
-  const { data: items } = await supabase.from('devis_items').select('quantity, unit_price').eq('version_id', versionId)
-  const total = (items ?? []).reduce((sum, i) => sum + Number(i.quantity) * Number(i.unit_price), 0)
+  const [{ data: items }, { data: version }] = await Promise.all([
+    supabase.from('devis_items').select('quantity, unit_price').eq('version_id', versionId),
+    supabase.from('devis_versions').select('discount_amount, vat_rate').eq('id', versionId).single(),
+  ])
+  const subtotal = (items ?? []).reduce((sum, i) => sum + Number(i.quantity) * Number(i.unit_price), 0)
+  const total = computeDevisTotal(subtotal, Number(version?.discount_amount ?? 0), version?.vat_rate != null ? Number(version.vat_rate) : null)
   await supabase.from('actions').update({ amount: total }).eq('id', actionId)
 }
 

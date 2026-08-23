@@ -67,6 +67,19 @@ export async function uploadLogo(formData: FormData) {
   redirect('/app/settings?logo_updated=1')
 }
 
+export async function updateVatRegistered(formData: FormData) {
+  const vatRegistered = formData.get('vat_registered') === 'on'
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  await supabase.from('profiles').update({ vat_registered: vatRegistered }).eq('id', user.id)
+  redirect('/app/settings?vat_updated=1')
+}
+
 export async function submitFeedback(formData: FormData) {
   const message = String(formData.get('message') ?? '').trim()
   if (!message) redirect('/app/settings')

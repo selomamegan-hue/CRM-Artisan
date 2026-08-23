@@ -1,14 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
-import { signOut, submitFeedback, updateProfileName, uploadLogo } from '../actions'
+import { signOut, submitFeedback, updateProfileName, uploadLogo, updateVatRegistered } from '../actions'
 import { subscriptionStatus, subscriptionLabel, SUBSCRIPTION_STYLE, SUBSCRIPTION_DOT } from '@/lib/subscription'
 import { planHasFeature, PLAN_LABEL } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { UpsellBanner } from '@/components/UpsellBanner'
 
 export default async function SettingsPage({ searchParams }: PageProps<'/app/settings'>) {
-  const { feedback, name_updated, logo_updated, logo_error } = await searchParams
+  const { feedback, name_updated, logo_updated, logo_error, vat_updated } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -16,9 +16,10 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const plan = await getUserPlan()
   const canSeeDashboard = planHasFeature(plan, 'dashboard')
   const canUseLogo = planHasFeature(plan, 'devis_logo')
+  const canUseDevisPdf = planHasFeature(plan, 'devis_pdf')
 
   const [{ data: profile }, factureActionsResult] = await Promise.all([
-    supabase.from('profiles').select('full_name, phone, whatsapp, subscription_expires_at, logo_url').eq('id', user!.id).single(),
+    supabase.from('profiles').select('full_name, phone, whatsapp, subscription_expires_at, logo_url, vat_registered').eq('id', user!.id).single(),
     canSeeDashboard
       ? supabase.from('actions').select('amount, amount_paid').eq('type', 'facture').neq('status', 'annule').not('amount', 'is', null)
       : Promise.resolve({ data: null }),
@@ -112,6 +113,31 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
           <UpsellBanner text="Logo personnalisé sur tes devis" plan="Premium" />
         )}
       </div>
+
+      {canUseDevisPdf && (
+        <div className="mb-6">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Taxes</p>
+          <form action={updateVatRegistered} className="flex items-center justify-between rounded-[10px] bg-white px-3.5 py-3 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+            <label htmlFor="vat_registered" className="flex items-center gap-2.5 text-[13px] text-[#22303A]">
+              <input
+                id="vat_registered"
+                type="checkbox"
+                name="vat_registered"
+                defaultChecked={profile?.vat_registered ?? false}
+                className="h-5 w-5 accent-[#1A5F7A]"
+              />
+              Assujetti à la TVA (18 %)
+            </label>
+            <button type="submit" className="shrink-0 rounded border border-[#22303A]/25 px-3 py-1.5 text-[12.5px] font-semibold text-[#22303A]">
+              Enregistrer
+            </button>
+          </form>
+          <p className="mt-1.5 text-[11px] text-[#8B9298]">
+            Applique la TVA par défaut sur tes prochains devis — modifiable sur chaque devis.
+          </p>
+          {vat_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Réglage TVA mis à jour.</p>}
+        </div>
+      )}
 
       <div className="rounded-xl bg-white px-4 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
         {rows.map((row) => (

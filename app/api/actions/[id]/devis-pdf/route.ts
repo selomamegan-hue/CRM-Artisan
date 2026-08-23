@@ -56,7 +56,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // devis just re-renders the same locked snapshot.
   let { data: version } = await supabase
     .from('devis_versions')
-    .select('id, number, status, validated_at')
+    .select('id, number, status, validated_at, discount_amount, vat_rate')
     .eq('action_id', id)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -76,7 +76,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       .from('devis_versions')
       .update({ status: 'envoye', sent_at: new Date().toISOString() })
       .eq('id', versionId)
-      .select('id, number, status, validated_at')
+      .select('id, number, status, validated_at, discount_amount, vat_rate')
       .single()
     version = locked
   }
@@ -110,6 +110,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     logo,
     validated,
     paidInFull,
+    discountAmount: Number(version!.discount_amount ?? 0),
+    vatRate: version!.vat_rate != null ? Number(version!.vat_rate) : null,
   })
 
   return new NextResponse(new Uint8Array(pdfBuffer), {

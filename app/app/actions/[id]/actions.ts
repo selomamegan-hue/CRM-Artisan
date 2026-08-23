@@ -7,6 +7,8 @@ import { planHasFeature } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { getOrCreateDraftVersion, recomputeActionAmount } from '@/lib/devis-versions'
 
+const TOGO_VAT_RATE = 18
+
 export async function markDone(id: string) {
   const supabase = await createClient()
   await supabase
@@ -101,7 +103,8 @@ export async function addDevisItem(id: string, formData: FormData) {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const versionId = await getOrCreateDraftVersion(supabase, user.id, id)
+  const { data: profile } = await supabase.from('profiles').select('vat_registered').eq('id', user.id).single()
+  const versionId = await getOrCreateDraftVersion(supabase, user.id, id, profile?.vat_registered ? TOGO_VAT_RATE : null)
 
   const { count } = await supabase
     .from('devis_items')
@@ -117,6 +120,32 @@ export async function addDevisItem(id: string, formData: FormData) {
     unit_price: unitPrice,
     position: count ?? 0,
   })
+
+  await recomputeActionAmount(supabase, id, versionId)
+
+  revalidatePath(`/app/actions/${id}`)
+  redirect(`/app/actions/${id}`)
+}
+
+export async function updateDevisTotals(id: string, formData: FormData) {
+  const discountAmount = Number(formData.get('discount_amount') ?? 0)
+  const vatApplied = formData.get('vat_applied') === 'on'
+  if (discountAmount < 0) redirect(`/app/actions/${id}`)
+
+  const plan = await getUserPlan()
+  if (!planHasFeature(plan, 'devis_pdf')) redirect('/app/choisir-offre')
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const versionId = await getOrCreateDraftVersion(supabase, user.id, id)
+  await supabase
+    .from('devis_versions')
+    .update({ discount_amount: discountAmount, vat_rate: vatApplied ? TOGO_VAT_RATE : null })
+    .eq('id', versionId)
 
   await recomputeActionAmount(supabase, id, versionId)
 
