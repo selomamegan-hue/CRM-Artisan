@@ -8,7 +8,7 @@ import { whatsappLink } from '@/lib/whatsapp'
 import { planHasFeature, devisMonthlyLimit } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { countDevisSentThisMonth } from '@/lib/devis-versions'
-import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem } from './actions'
+import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem, markDevisValidated } from './actions'
 import { PaymentReceipt } from './receipt'
 import { UpsellBanner } from '@/components/UpsellBanner'
 
@@ -34,20 +34,20 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
 
   if (!action) notFound()
 
-  let devisVersion: { number: string; status: string } | null = null
+  let devisVersion: { number: string; status: string; validated_at: string | null } | null = null
   let devisItems: { id: string; description: string; quantity: number; unit_price: number }[] = []
 
   if (action.type === 'devis') {
     const { data: version } = await supabase
       .from('devis_versions')
-      .select('id, number, status')
+      .select('id, number, status, validated_at')
       .eq('action_id', id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     if (version) {
-      devisVersion = { number: version.number, status: version.status }
+      devisVersion = { number: version.number, status: version.status, validated_at: version.validated_at }
       const { data: items } = await supabase
         .from('devis_items')
         .select('id, description, quantity, unit_price')
@@ -66,6 +66,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   const signature = canUseSignature ? profile?.full_name?.trim() || null : null
   const canTrackPayments = planHasFeature(plan, 'payments')
   const canUseDevisPdf = planHasFeature(plan, 'devis_pdf')
+  const canUseStamps = planHasFeature(plan, 'devis_stamps')
 
   const isNewDevisSend = !devisVersion || devisVersion.status === 'brouillon'
   const monthlyLimit = devisMonthlyLimit(plan)
@@ -179,6 +180,9 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
                 <>
                   Devis <span className="font-semibold text-[#22303A]">{devisVersion.number}</span> envoyé — le modifier
                   créera une nouvelle version.
+                  {canUseStamps && devisVersion.validated_at && (
+                    <span className="ml-1.5 font-semibold text-[#3A9188]">✓ Validé par le client</span>
+                  )}
                 </>
               ) : (
                 <>
@@ -186,6 +190,17 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
                 </>
               )}
             </p>
+          )}
+
+          {canUseStamps && devisVersion?.status === 'envoye' && !devisVersion.validated_at && (
+            <form action={markDevisValidated.bind(null, action.id)} className="mb-3">
+              <button
+                type="submit"
+                className="rounded-full border-[1.5px] border-[#3A9188] px-3.5 py-1.5 text-[12.5px] font-semibold text-[#3A9188]"
+              >
+                Marquer ce devis comme validé par le client
+              </button>
+            </form>
           )}
 
           {devisRemaining != null && !devisQuotaExhausted && (

@@ -1,23 +1,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
-import { signOut, submitFeedback, updateProfileName } from '../actions'
+import { signOut, submitFeedback, updateProfileName, uploadLogo } from '../actions'
 import { subscriptionStatus, subscriptionLabel, SUBSCRIPTION_STYLE, SUBSCRIPTION_DOT } from '@/lib/subscription'
 import { planHasFeature, PLAN_LABEL } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { UpsellBanner } from '@/components/UpsellBanner'
 
 export default async function SettingsPage({ searchParams }: PageProps<'/app/settings'>) {
-  const { feedback, name_updated } = await searchParams
+  const { feedback, name_updated, logo_updated, logo_error } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   const plan = await getUserPlan()
   const canSeeDashboard = planHasFeature(plan, 'dashboard')
+  const canUseLogo = planHasFeature(plan, 'devis_logo')
 
   const [{ data: profile }, factureActionsResult] = await Promise.all([
-    supabase.from('profiles').select('full_name, phone, whatsapp, subscription_expires_at').eq('id', user!.id).single(),
+    supabase.from('profiles').select('full_name, phone, whatsapp, subscription_expires_at, logo_url').eq('id', user!.id).single(),
     canSeeDashboard
       ? supabase.from('actions').select('amount, amount_paid').eq('type', 'facture').neq('status', 'annule').not('amount', 'is', null)
       : Promise.resolve({ data: null }),
@@ -72,6 +73,44 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
           </button>
         </form>
         {name_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Nom mis à jour.</p>}
+      </div>
+
+      <div className="mb-6">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
+          Logo (apparaît sur tes devis PDF)
+        </p>
+        {canUseLogo ? (
+          <>
+            <div className="flex items-center gap-3">
+              {profile?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={profile.logo_url}
+                  alt="Logo actuel"
+                  className="h-12 w-12 rounded-lg border border-[#22303A]/15 object-contain bg-white"
+                />
+              )}
+              <form action={uploadLogo} className="flex flex-1 items-center gap-2">
+                <input
+                  type="file"
+                  name="logo"
+                  accept="image/jpeg"
+                  required
+                  className="w-full min-w-0 text-[12.5px] text-[#5B6B72] file:mr-2 file:rounded file:border-0 file:bg-[#1A5F7A] file:px-3 file:py-1.5 file:text-[12.5px] file:font-semibold file:text-white"
+                />
+                <button type="submit" className="shrink-0 rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
+                  Envoyer
+                </button>
+              </form>
+            </div>
+            {logo_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Logo mis à jour.</p>}
+            {logo_error === 'format' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">Format non supporté — utilise un JPEG.</p>}
+            {logo_error === 'size' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">Fichier trop lourd (2 Mo maximum).</p>}
+            {logo_error === 'upload' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">L&apos;envoi a échoué, réessaie.</p>}
+          </>
+        ) : (
+          <UpsellBanner text="Logo personnalisé sur tes devis" plan="Premium" />
+        )}
       </div>
 
       <div className="rounded-xl bg-white px-4 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">

@@ -9,13 +9,20 @@ export const PLAN_LABEL: Record<Plan, string> = {
 
 export const PLAN_ORDER: Plan[] = ['pro', 'premium', 'gold']
 
-export type Feature = 'payments' | 'chantier' | 'dashboard' | 'custom_signature' | 'devis_pdf'
+export type Feature =
+  | 'payments'
+  | 'chantier'
+  | 'dashboard'
+  | 'custom_signature'
+  | 'devis_pdf'
+  | 'devis_logo'
+  | 'devis_stamps'
 
 const PLAN_FEATURES: Record<Plan, Feature[]> = {
-  essai: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf'],
+  essai: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf', 'devis_logo', 'devis_stamps'],
   pro: [],
-  premium: ['payments', 'chantier', 'devis_pdf'],
-  gold: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf'],
+  premium: ['payments', 'chantier', 'devis_pdf', 'devis_logo'],
+  gold: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf', 'devis_logo', 'devis_stamps'],
 }
 
 export function planHasFeature(plan: Plan, feature: Feature): boolean {

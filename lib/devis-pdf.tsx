@@ -1,9 +1,11 @@
 import 'server-only'
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
+import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10.5, fontFamily: 'Helvetica', color: '#22303A' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 },
+  companyBlock: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logo: { width: 40, height: 40, objectFit: 'contain' },
   companyName: { fontSize: 15, fontFamily: 'Helvetica-Bold', marginBottom: 3 },
   small: { fontSize: 9.5, color: '#5B6B72', marginBottom: 1 },
   title: { fontSize: 18, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
@@ -22,6 +24,29 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#22303A' },
   totalLabel: { fontSize: 11, fontFamily: 'Helvetica-Bold', marginRight: 12 },
   totalAmount: { fontSize: 13, fontFamily: 'Helvetica-Bold' },
+  stampsRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 18 },
+  stampValidated: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#3A9188',
+    borderWidth: 1.5,
+    borderColor: '#3A9188',
+    borderStyle: 'solid',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    transform: 'rotate(-8deg)',
+  },
+  stampSolde: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1A5F7A',
+    borderWidth: 1.5,
+    borderColor: '#1A5F7A',
+    borderStyle: 'solid',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    transform: 'rotate(-8deg)',
+  },
   footer: { position: 'absolute', bottom: 40, left: 40, right: 40, fontSize: 8.5, color: '#8B9298', textAlign: 'center' },
 })
 
@@ -35,6 +60,10 @@ function formatFcfa(value: number): string {
 }
 
 export type DevisItem = { description: string; quantity: number; unit_price: number }
+// Data URI string — the {data, format} object shape has known silent-failure
+// reports with @react-pdf/renderer; a base64 data URI is the documented,
+// reliable path for embedding a Node-fetched image.
+export type DevisLogo = string
 
 export type DevisPdfData = {
   number: string
@@ -45,21 +74,28 @@ export type DevisPdfData = {
   clientPhone: string | null
   date: string
   excerpt: string
+  amount: number | null
   items: DevisItem[]
+  logo: DevisLogo | null
+  validated: boolean
+  paidInFull: boolean
 }
 
 function DevisDocument({ data }: { data: DevisPdfData }) {
-  const items = data.items.length > 0 ? data.items : [{ description: data.excerpt, quantity: 1, unit_price: 0 }]
+  const items = data.items.length > 0 ? data.items : [{ description: data.excerpt, quantity: 1, unit_price: data.amount ?? 0 }]
   const total = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.companyName}>{data.companyName}</Text>
-            {data.companyPhone && <Text style={styles.small}>Tél : {data.companyPhone}</Text>}
-            {data.companyWhatsapp && <Text style={styles.small}>WhatsApp : {data.companyWhatsapp}</Text>}
+          <View style={styles.companyBlock}>
+            {data.logo && <Image src={data.logo} style={styles.logo} />}
+            <View>
+              <Text style={styles.companyName}>{data.companyName}</Text>
+              {data.companyPhone && <Text style={styles.small}>Tél : {data.companyPhone}</Text>}
+              {data.companyWhatsapp && <Text style={styles.small}>WhatsApp : {data.companyWhatsapp}</Text>}
+            </View>
           </View>
           <View>
             <Text style={styles.title}>DEVIS {data.number}</Text>
@@ -94,6 +130,13 @@ function DevisDocument({ data }: { data: DevisPdfData }) {
           <Text style={styles.totalLabel}>TOTAL</Text>
           <Text style={styles.totalAmount}>{formatFcfa(total)}</Text>
         </View>
+
+        {(data.validated || data.paidInFull) && (
+          <View style={styles.stampsRow}>
+            {data.validated && <Text style={styles.stampValidated}>VALIDÉ</Text>}
+            {data.paidInFull && <Text style={styles.stampSolde}>SOLDÉ</Text>}
+          </View>
+        )}
 
         <Text style={styles.footer}>Devis émis par {data.companyName}</Text>
       </Page>

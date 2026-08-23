@@ -60,6 +60,31 @@ export async function recordPayment(id: string, formData: FormData) {
   redirect(`/app/actions/${id}?paid=1`)
 }
 
+export async function markDevisValidated(id: string) {
+  const plan = await getUserPlan()
+  if (!planHasFeature(plan, 'devis_stamps')) redirect('/app/choisir-offre')
+
+  const supabase = await createClient()
+
+  // Ne s'applique qu'à la version déjà envoyée — un brouillon n'a encore
+  // rien à valider, et une future modification créera de toute façon une
+  // nouvelle version qui repart sans validation.
+  const { data: version } = await supabase
+    .from('devis_versions')
+    .select('id, status')
+    .eq('action_id', id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (version && version.status === 'envoye') {
+    await supabase.from('devis_versions').update({ validated_at: new Date().toISOString() }).eq('id', version.id)
+  }
+
+  revalidatePath(`/app/actions/${id}`)
+  redirect(`/app/actions/${id}`)
+}
+
 export async function addDevisItem(id: string, formData: FormData) {
   const description = String(formData.get('description') ?? '').trim()
   const quantity = Number(formData.get('quantity') ?? 1)
