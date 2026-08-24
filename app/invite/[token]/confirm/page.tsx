@@ -11,8 +11,8 @@ export default async function InviteConfirmPage(props: PageProps<'/invite/[token
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
   if (exchangeError) redirect(`/invite/${token}`)
 
-  const { data: linked } = await supabase.rpc('accept_invite', { token })
-  if (!linked) redirect('/login')
+  const { data: status } = await supabase.rpc('accept_invite', { token })
+  if (status !== 'ok') redirect(`/invite/${token}?error=${status ?? 'invalid'}`)
 
   redirect('/app')
 }
