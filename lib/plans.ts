@@ -17,12 +17,13 @@ export type Feature =
   | 'devis_pdf'
   | 'devis_logo'
   | 'devis_stamps'
+  | 'secondary_accounts'
 
 const PLAN_FEATURES: Record<Plan, Feature[]> = {
-  essai: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf', 'devis_logo', 'devis_stamps'],
+  essai: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf', 'devis_logo', 'devis_stamps', 'secondary_accounts'],
   pro: [],
-  premium: ['payments', 'chantier', 'devis_pdf', 'devis_logo'],
-  gold: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf', 'devis_logo', 'devis_stamps'],
+  premium: ['payments', 'chantier', 'devis_pdf', 'devis_logo', 'secondary_accounts'],
+  gold: ['payments', 'chantier', 'dashboard', 'custom_signature', 'devis_pdf', 'devis_logo', 'devis_stamps', 'secondary_accounts'],
 }
 
 export function planHasFeature(plan: Plan, feature: Feature): boolean {
@@ -46,4 +47,16 @@ const DEVIS_MONTHLY_LIMIT: Partial<Record<Plan, number>> = {
 
 export function devisMonthlyLimit(plan: Plan): number | null {
   return DEVIS_MONTHLY_LIMIT[plan] ?? null
+}
+
+// Comptes secondaires actifs — Premium : 1, Gold : 3. Illimité pendant
+// l'essai, comme les autres quotas, pour que l'artisan voie toute la valeur
+// avant de payer.
+const SECONDARY_ACCOUNT_LIMIT: Partial<Record<Plan, number>> = {
+  premium: 1,
+  gold: 3,
+}
+
+export function secondaryAccountLimit(plan: Plan): number | null {
+  return SECONDARY_ACCOUNT_LIMIT[plan] ?? null
 }

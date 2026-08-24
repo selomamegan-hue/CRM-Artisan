@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { resolveOwnerId } from '@/lib/delegates'
 import type { ActionType } from '@/lib/types'
 
 export async function confirmNote(formData: FormData) {
@@ -10,6 +11,7 @@ export async function confirmNote(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const ownerId = await resolveOwnerId(supabase, user.id)
 
   const transcript = String(formData.get('transcript') ?? '').trim()
   const source = String(formData.get('source') ?? 'manual') === 'voice' ? 'voice' : 'manual'
@@ -29,7 +31,7 @@ export async function confirmNote(formData: FormData) {
     if (!newClientName) redirect('/app/record')
     const { data: newClient, error } = await supabase
       .from('clients')
-      .insert({ user_id: user.id, name: newClientName, is_minimal: true })
+      .insert({ user_id: ownerId, name: newClientName, is_minimal: true })
       .select('id')
       .single()
     if (error || !newClient) redirect('/app/record')
@@ -39,7 +41,7 @@ export async function confirmNote(formData: FormData) {
   const { data: note, error: noteError } = await supabase
     .from('notes')
     .insert({
-      user_id: user.id,
+      user_id: ownerId,
       client_id: finalClientId,
       transcript,
       site: site || null,
@@ -52,7 +54,7 @@ export async function confirmNote(formData: FormData) {
   if (noteError || !note) redirect('/app/record')
 
   await supabase.from('actions').insert({
-    user_id: user.id,
+    user_id: ownerId,
     client_id: finalClientId,
     note_id: note.id,
     type,

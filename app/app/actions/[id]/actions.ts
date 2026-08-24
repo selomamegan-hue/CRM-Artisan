@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { planHasFeature } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { getOrCreateDraftVersion, recomputeActionAmount } from '@/lib/devis-versions'
+import { resolveOwnerId } from '@/lib/delegates'
 
 const TOGO_VAT_RATE = 18
 
@@ -48,11 +49,12 @@ export async function recordPayment(id: string, formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const ownerId = await resolveOwnerId(supabase, user.id)
 
   const { data: action } = await supabase.from('actions').select('amount_paid').eq('id', id).single()
   if (!action) redirect(`/app/actions/${id}`)
 
-  await supabase.from('payments').insert({ user_id: user.id, action_id: id, amount })
+  await supabase.from('payments').insert({ user_id: ownerId, action_id: id, amount })
   await supabase
     .from('actions')
     .update({ amount_paid: Number(action.amount_paid) + amount })
@@ -102,9 +104,10 @@ export async function addDevisItem(id: string, formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const ownerId = await resolveOwnerId(supabase, user.id)
 
-  const { data: profile } = await supabase.from('profiles').select('vat_registered').eq('id', user.id).single()
-  const versionId = await getOrCreateDraftVersion(supabase, user.id, id, profile?.vat_registered ? TOGO_VAT_RATE : null)
+  const { data: profile } = await supabase.from('profiles').select('vat_registered').eq('id', ownerId).single()
+  const versionId = await getOrCreateDraftVersion(supabase, ownerId, id, profile?.vat_registered ? TOGO_VAT_RATE : null)
 
   const { count } = await supabase
     .from('devis_items')
@@ -112,7 +115,7 @@ export async function addDevisItem(id: string, formData: FormData) {
     .eq('version_id', versionId)
 
   await supabase.from('devis_items').insert({
-    user_id: user.id,
+    user_id: ownerId,
     action_id: id,
     version_id: versionId,
     description,
@@ -140,8 +143,9 @@ export async function updateDevisTotals(id: string, formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const ownerId = await resolveOwnerId(supabase, user.id)
 
-  const versionId = await getOrCreateDraftVersion(supabase, user.id, id)
+  const versionId = await getOrCreateDraftVersion(supabase, ownerId, id)
   await supabase
     .from('devis_versions')
     .update({ discount_amount: discountAmount, vat_rate: vatApplied ? TOGO_VAT_RATE : null })
@@ -162,6 +166,7 @@ export async function removeDevisItem(id: string, itemId: string) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const ownerId = await resolveOwnerId(supabase, user.id)
 
   const { data: item } = await supabase.from('devis_items').select('version_id').eq('id', itemId).single()
   if (!item) redirect(`/app/actions/${id}`)
@@ -170,7 +175,7 @@ export async function removeDevisItem(id: string, itemId: string) {
   // d'abord vers un brouillon et on retire la ligne là — jamais sur l'original.
   const { data: version } = await supabase.from('devis_versions').select('status').eq('id', item.version_id).single()
   const versionId =
-    version?.status === 'envoye' ? await getOrCreateDraftVersion(supabase, user.id, id) : item.version_id
+    version?.status === 'envoye' ? await getOrCreateDraftVersion(supabase, ownerId, id) : item.version_id
 
   if (version?.status === 'envoye') {
     // Le clone a copié toutes les lignes de la version envoyée, y compris

@@ -4,6 +4,7 @@ import { openai } from '@/lib/openai'
 import { findBestClientMatch } from '@/lib/client-match'
 import { voiceNoteMonthlyLimit } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
+import { resolveOwnerId } from '@/lib/delegates'
 
 const WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 
@@ -41,11 +42,14 @@ export async function POST(request: Request) {
   const limit = voiceNoteMonthlyLimit(plan)
 
   if (limit != null) {
+    // Le quota est celui de l'activité de l'artisan, partagé par tous ses
+    // comptes secondaires — pas un quota par connexion individuelle.
+    const ownerId = await resolveOwnerId(supabase, user.id)
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
     const { count } = await supabase
       .from('notes')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', ownerId)
       .eq('source', 'voice')
       .gte('created_at', startOfMonth)
 

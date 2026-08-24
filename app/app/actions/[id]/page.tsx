@@ -8,6 +8,7 @@ import { whatsappLink } from '@/lib/whatsapp'
 import { planHasFeature, devisMonthlyLimit } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { countDevisSentThisMonth } from '@/lib/devis-versions'
+import { resolveOwnerId } from '@/lib/delegates'
 import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem, markDevisValidated, updateDevisTotals } from './actions'
 import { PaymentReceipt } from './receipt'
 import { UpsellBanner } from '@/components/UpsellBanner'
@@ -20,6 +21,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   const {
     data: { user },
   } = await supabase.auth.getUser()
+  const ownerId = await resolveOwnerId(supabase, user!.id)
 
   const [{ data: action }, { data: payments }, { data: profile }, plan] = await Promise.all([
     supabase
@@ -28,7 +30,9 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
       .eq('id', id)
       .single(),
     supabase.from('payments').select('id, amount, created_at').eq('action_id', id).order('created_at', { ascending: false }),
-    supabase.from('profiles').select('full_name').eq('id', user!.id).single(),
+    // La signature sur les messages clients reste celle du compte principal,
+    // pas celle d'un compte secondaire qui aurait rédigé la note.
+    supabase.from('profiles').select('full_name').eq('id', ownerId).single(),
     getUserPlan(),
   ])
 
@@ -84,7 +88,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   const monthlyLimit = devisMonthlyLimit(plan)
   let devisRemaining: number | null = null
   if (canUseDevisPdf && action.type === 'devis' && isNewDevisSend && monthlyLimit != null) {
-    const used = await countDevisSentThisMonth(supabase, user!.id)
+    const used = await countDevisSentThisMonth(supabase, ownerId)
     devisRemaining = monthlyLimit - used
   }
   const devisQuotaExhausted = devisRemaining != null && devisRemaining <= 0

@@ -70,9 +70,18 @@ export default function ReviewPage() {
 
     supabase
       .auth.getUser()
-      .then(({ data: { user } }) => {
-        if (!user) return
-        return supabase.from('profiles').select('subscription_plan').eq('id', user.id).single()
+      .then(async ({ data: { user } }) => {
+        if (!user) return null
+        // Un compte secondaire n'a pas son propre abonnement : on lit le
+        // plan du compte principal qui l'a invité, sinon le sien.
+        const { data: delegate } = await supabase
+          .from('delegates')
+          .select('primary_user_id')
+          .eq('secondary_user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle()
+        const ownerId = delegate?.primary_user_id ?? user.id
+        return supabase.from('profiles').select('subscription_plan').eq('id', ownerId).single()
       })
       .then((res) => {
         if (res?.data?.subscription_plan) setPlan(res.data.subscription_plan as Plan)

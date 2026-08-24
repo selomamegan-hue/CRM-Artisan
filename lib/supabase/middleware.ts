@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { resolveOwnerId } from '@/lib/delegates'
 
 const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset-password', '/reset-password/confirm']
 
@@ -30,7 +31,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/api/')
+  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/api/') || pathname.startsWith('/invite/')
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
@@ -48,10 +49,14 @@ export async function updateSession(request: NextRequest) {
   const needsActivePlan = user && pathname.startsWith('/app') && !EXEMPT_FROM_PLAN_GATE.includes(pathname)
 
   if (needsActivePlan) {
+    // Un compte secondaire n'a pas son propre abonnement : sans cette
+    // résolution, son profil auto-créé (sans date d'expiration) le
+    // laisserait toujours passer, même si l'abonnement du principal a expiré.
+    const ownerId = await resolveOwnerId(supabase, user.id)
     const { data: profile } = await supabase
       .from('profiles')
       .select('subscription_expires_at')
-      .eq('id', user.id)
+      .eq('id', ownerId)
       .single()
 
     const expiresAt = profile?.subscription_expires_at

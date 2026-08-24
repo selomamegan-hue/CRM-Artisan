@@ -4,6 +4,7 @@ import { getUserPlan } from '@/lib/plans-server'
 import { planHasFeature, devisMonthlyLimit } from '@/lib/plans'
 import { renderDevisPdf, type DevisLogo } from '@/lib/devis-pdf'
 import { getOrCreateDraftVersion, countDevisSentThisMonth } from '@/lib/devis-versions'
+import { resolveOwnerId } from '@/lib/delegates'
 
 async function fetchLogo(url: string): Promise<DevisLogo | null> {
   try {
@@ -39,13 +40,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
+  const ownerId = await resolveOwnerId(supabase, user.id)
+
   const [{ data: action }, { data: profile }] = await Promise.all([
     supabase
       .from('actions')
       .select('excerpt, amount, amount_paid, created_at, clients(name, phone)')
       .eq('id', id)
       .single(),
-    supabase.from('profiles').select('full_name, phone, whatsapp, logo_url').eq('id', user.id).single(),
+    supabase.from('profiles').select('full_name, phone, whatsapp, logo_url').eq('id', ownerId).single(),
   ])
 
   if (!action) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -65,13 +68,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!version || version.status === 'brouillon') {
     const limit = devisMonthlyLimit(plan)
     if (limit != null) {
-      const used = await countDevisSentThisMonth(supabase, user.id)
+      const used = await countDevisSentThisMonth(supabase, ownerId)
       if (used >= limit) {
         return NextResponse.json({ error: 'devis_quota_exceeded', limit }, { status: 403 })
       }
     }
 
-    const versionId = version ? version.id : await getOrCreateDraftVersion(supabase, user.id, id)
+    const versionId = version ? version.id : await getOrCreateDraftVersion(supabase, ownerId, id)
     const { data: locked } = await supabase
       .from('devis_versions')
       .update({ status: 'envoye', sent_at: new Date().toISOString() })

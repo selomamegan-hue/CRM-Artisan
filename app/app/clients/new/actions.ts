@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { findBestClientMatch } from '@/lib/client-match'
+import { resolveOwnerId } from '@/lib/delegates'
 
 export type CreateClientState =
   | { error?: string; duplicate?: { id: string; name: string } }
@@ -31,9 +32,10 @@ export async function createNewClient(_prevState: CreateClientState, formData: F
     if (match) return { duplicate: { id: match.id, name: match.name } }
   }
 
+  const ownerId = await resolveOwnerId(supabase, user!.id)
   const { data, error } = await supabase
     .from('clients')
-    .insert({ user_id: user!.id, name, phone: phone || null, is_minimal: false })
+    .insert({ user_id: ownerId, name, phone: phone || null, is_minimal: false })
     .select('id')
     .single()
 

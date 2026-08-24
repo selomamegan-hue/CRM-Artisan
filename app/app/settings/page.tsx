@@ -2,13 +2,16 @@ import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
 import { signOut, submitFeedback, updateProfileName, uploadLogo, updateVatRegistered } from '../actions'
+import { inviteSecondaryAccount, revokeSecondaryAccount, inviteLink } from './delegates-actions'
 import { subscriptionStatus, subscriptionLabel, SUBSCRIPTION_STYLE, SUBSCRIPTION_DOT } from '@/lib/subscription'
-import { planHasFeature, PLAN_LABEL } from '@/lib/plans'
+import { planHasFeature, secondaryAccountLimit, PLAN_LABEL } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
+import { resolveOwnerId, isActiveDelegate } from '@/lib/delegates'
 import { UpsellBanner } from '@/components/UpsellBanner'
 
 export default async function SettingsPage({ searchParams }: PageProps<'/app/settings'>) {
-  const { feedback, name_updated, logo_updated, logo_error, vat_updated } = await searchParams
+  const { feedback, name_updated, logo_updated, logo_error, vat_updated, invite_token, delegate_error, delegate_revoked } =
+    await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -17,13 +20,29 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const canSeeDashboard = planHasFeature(plan, 'dashboard')
   const canUseLogo = planHasFeature(plan, 'devis_logo')
   const canUseDevisPdf = planHasFeature(plan, 'devis_pdf')
+  const canUseSecondaryAccounts = planHasFeature(plan, 'secondary_accounts')
 
-  const [{ data: profile }, factureActionsResult] = await Promise.all([
-    supabase.from('profiles').select('full_name, phone, whatsapp, subscription_expires_at, logo_url, vat_registered').eq('id', user!.id).single(),
+  const ownerId = await resolveOwnerId(supabase, user!.id)
+  const isDelegate = await isActiveDelegate(supabase, user!.id)
+
+  const [{ data: profile }, factureActionsResult, delegatesResult] = await Promise.all([
+    supabase.from('profiles').select('full_name, phone, whatsapp, subscription_expires_at, logo_url, vat_registered').eq('id', ownerId).single(),
     canSeeDashboard
       ? supabase.from('actions').select('amount, amount_paid').eq('type', 'facture').neq('status', 'annule').not('amount', 'is', null)
       : Promise.resolve({ data: null }),
+    !isDelegate && canUseSecondaryAccounts
+      ? supabase
+          .from('delegates')
+          .select('id, status, invite_token, invite_expires_at, secondary_user_id')
+          .eq('primary_user_id', ownerId)
+          .in('status', ['pending', 'active'])
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: null }),
   ])
+
+  const delegates = delegatesResult.data ?? []
+  const secondaryLimit = secondaryAccountLimit(plan)
+  const justInvitedLink = invite_token ? await inviteLink(String(invite_token)) : null
 
   const totalFacture = (factureActionsResult.data ?? []).reduce((sum, a) => sum + (a.amount ?? 0), 0)
   const totalCollecte = (factureActionsResult.data ?? []).reduce((sum, a) => sum + (a.amount_paid ?? 0), 0)
@@ -58,63 +77,73 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
         </span>
       </div>
 
-      <div className="mb-6">
-        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
-          Nom (apparaît en signature de tes messages)
-        </p>
-        <form action={updateProfileName} className="flex items-center gap-2">
-          <input
-            name="full_name"
-            defaultValue={profile?.full_name ?? ''}
-            placeholder="Ex : Marc Prestations SARL"
-            className="w-full rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
-          />
-          <button type="submit" className="shrink-0 rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
-            Enregistrer
-          </button>
-        </form>
-        {name_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Nom mis à jour.</p>}
-      </div>
+      {isDelegate && (
+        <div className="mb-6 rounded-[10px] bg-[#1A5F7A]/10 px-4 py-3.5 text-[13px] leading-relaxed text-[#22303A]">
+          Tu es connecté·e comme <strong>compte secondaire</strong> de {name}. Tu vois et modifies les mêmes clients, notes et devis — l&apos;abonnement, le logo, la TVA et les autres comptes secondaires restent réservés au compte principal.
+        </div>
+      )}
 
-      <div className="mb-6">
-        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
-          Logo (apparaît sur tes devis PDF)
-        </p>
-        {canUseLogo ? (
-          <>
-            <div className="flex items-center gap-3">
-              {profile?.logo_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={profile.logo_url}
-                  alt="Logo actuel"
-                  className="h-12 w-12 rounded-lg border border-[#22303A]/15 object-contain bg-white"
-                />
-              )}
-              <form action={uploadLogo} className="flex flex-1 items-center gap-2">
-                <input
-                  type="file"
-                  name="logo"
-                  accept="image/jpeg"
-                  required
-                  className="w-full min-w-0 text-[12.5px] text-[#5B6B72] file:mr-2 file:rounded file:border-0 file:bg-[#1A5F7A] file:px-3 file:py-1.5 file:text-[12.5px] file:font-semibold file:text-white"
-                />
-                <button type="submit" className="shrink-0 rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
-                  Envoyer
-                </button>
-              </form>
-            </div>
-            {logo_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Logo mis à jour.</p>}
-            {logo_error === 'format' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">Format non supporté — utilise un JPEG.</p>}
-            {logo_error === 'size' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">Fichier trop lourd (2 Mo maximum).</p>}
-            {logo_error === 'upload' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">L&apos;envoi a échoué, réessaie.</p>}
-          </>
-        ) : (
-          <UpsellBanner text="Logo personnalisé sur tes devis" plan="Premium" />
-        )}
-      </div>
+      {!isDelegate && (
+        <div className="mb-6">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
+            Nom (apparaît en signature de tes messages)
+          </p>
+          <form action={updateProfileName} className="flex items-center gap-2">
+            <input
+              name="full_name"
+              defaultValue={profile?.full_name ?? ''}
+              placeholder="Ex : Marc Prestations SARL"
+              className="w-full rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
+            />
+            <button type="submit" className="shrink-0 rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
+              Enregistrer
+            </button>
+          </form>
+          {name_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Nom mis à jour.</p>}
+        </div>
+      )}
 
-      {canUseDevisPdf && (
+      {!isDelegate && (
+        <div className="mb-6">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
+            Logo (apparaît sur tes devis PDF)
+          </p>
+          {canUseLogo ? (
+            <>
+              <div className="flex items-center gap-3">
+                {profile?.logo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profile.logo_url}
+                    alt="Logo actuel"
+                    className="h-12 w-12 rounded-lg border border-[#22303A]/15 object-contain bg-white"
+                  />
+                )}
+                <form action={uploadLogo} className="flex flex-1 items-center gap-2">
+                  <input
+                    type="file"
+                    name="logo"
+                    accept="image/jpeg"
+                    required
+                    className="w-full min-w-0 text-[12.5px] text-[#5B6B72] file:mr-2 file:rounded file:border-0 file:bg-[#1A5F7A] file:px-3 file:py-1.5 file:text-[12.5px] file:font-semibold file:text-white"
+                  />
+                  <button type="submit" className="shrink-0 rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
+                    Envoyer
+                  </button>
+                </form>
+              </div>
+              {logo_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Logo mis à jour.</p>}
+              {logo_error === 'format' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">Format non supporté — utilise un JPEG.</p>}
+              {logo_error === 'size' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">Fichier trop lourd (2 Mo maximum).</p>}
+              {logo_error === 'upload' && <p className="mt-1.5 text-[12.5px] text-[#C96A3D]">L&apos;envoi a échoué, réessaie.</p>}
+            </>
+          ) : (
+            <UpsellBanner text="Logo personnalisé sur tes devis" plan="Premium" />
+          )}
+        </div>
+      )}
+
+      {!isDelegate && canUseDevisPdf && (
         <div className="mb-6">
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Taxes</p>
           <form action={updateVatRegistered} className="flex items-center justify-between rounded-[10px] bg-white px-3.5 py-3 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
@@ -136,6 +165,66 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
             Applique la TVA par défaut sur tes prochains devis — modifiable sur chaque devis.
           </p>
           {vat_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Réglage TVA mis à jour.</p>}
+        </div>
+      )}
+
+      {!isDelegate && (
+        <div className="mb-6">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Comptes secondaires</p>
+          {canUseSecondaryAccounts ? (
+            <>
+              {delegates.length > 0 && (
+                <div className="mb-2.5 rounded-xl bg-white px-4 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+                  {delegates.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between gap-3 border-b border-[#22303A]/[0.14] py-3 last:border-b-0">
+                      <span className="text-[13px] text-[#22303A]">
+                        {d.status === 'active' ? 'Compte actif' : 'Invitation en attente'}
+                      </span>
+                      <form action={revokeSecondaryAccount.bind(null, d.id)}>
+                        <button type="submit" className="text-[12.5px] font-semibold text-[#C96A3D] underline underline-offset-2">
+                          {d.status === 'active' ? 'Révoquer' : 'Annuler'}
+                        </button>
+                      </form>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {justInvitedLink && (
+                <div className="mb-2.5 rounded-[10px] bg-[#3A9188]/10 px-3.5 py-3 text-[13px] text-[#22303A]">
+                  <p className="mb-1.5 font-semibold">Invitation créée — partage ce lien :</p>
+                  <p className="mb-2 break-all rounded border border-[#22303A]/15 bg-white px-2.5 py-2 text-[12px] text-[#5B6B72]">{justInvitedLink}</p>
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(`Rejoins-moi sur Bonfil : ${justInvitedLink}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[12.5px] font-semibold text-[#1A5F7A] underline underline-offset-2"
+                  >
+                    Partager sur WhatsApp
+                  </a>
+                </div>
+              )}
+
+              {delegate_error === 'quota' && (
+                <p className="mb-2 text-[12.5px] text-[#C96A3D]">Limite de comptes secondaires atteinte pour ton offre.</p>
+              )}
+              {delegate_revoked === '1' && <p className="mb-2 text-[12.5px] text-[#3A9188]">Accès révoqué.</p>}
+
+              {secondaryLimit == null || delegates.length < secondaryLimit ? (
+                <form action={inviteSecondaryAccount}>
+                  <button type="submit" className="w-full rounded-[10px] border border-[#1A5F7A] py-2.5 text-[13px] font-semibold text-[#1A5F7A]">
+                    + Inviter un compte secondaire
+                  </button>
+                </form>
+              ) : (
+                <p className="text-[11px] text-[#8B9298]">
+                  {delegates.length}/{secondaryLimit} comptes secondaires utilisés — révoque un accès pour en inviter un autre.
+                </p>
+              )}
+            </>
+          ) : (
+            <UpsellBanner text="Comptes secondaires pour ton équipe" plan="Premium" />
+          )}
         </div>
       )}
 

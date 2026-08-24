@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { planHasFeature } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
+import { isActiveDelegate } from '@/lib/delegates'
 
 // JPEG only : @react-pdf/renderer 4.6.1 a un décodeur PNG qui échoue
 // silencieusement sur des PNG pourtant valides (bug connu du projet).
@@ -24,6 +25,9 @@ export async function updateProfileName(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  // Le nom/signature de l'entreprise est réservé au compte principal — un
+  // compte secondaire ne doit pas pouvoir renommer l'identité de l'artisan.
+  if (await isActiveDelegate(supabase, user.id)) redirect('/app/settings')
 
   await supabase.from('profiles').update({ full_name: fullName || null }).eq('id', user.id)
   redirect('/app/settings?name_updated=1')
@@ -48,6 +52,7 @@ export async function uploadLogo(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  if (await isActiveDelegate(supabase, user.id)) redirect('/app/settings')
 
   const path = `${user.id}/logo`
   const { error: uploadError } = await supabase.storage.from('logos').upload(path, file, {
@@ -75,6 +80,7 @@ export async function updateVatRegistered(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  if (await isActiveDelegate(supabase, user.id)) redirect('/app/settings')
 
   await supabase.from('profiles').update({ vat_registered: vatRegistered }).eq('id', user.id)
   redirect('/app/settings?vat_updated=1')
