@@ -26,6 +26,7 @@ const PLAN_PITCH: Record<Exclude<Plan, 'essai'>, { tagline: string; monthly: num
       'Vue Impayés sur tous les clients',
       'Chantiers multiples par client',
       'Devis PDF détaillé (5 envoyés par mois)',
+      '1 compte secondaire',
     ],
   },
   gold: {
@@ -37,6 +38,7 @@ const PLAN_PITCH: Record<Exclude<Plan, 'essai'>, { tagline: string; monthly: num
       'Devis PDF détaillé illimité',
       'Tableau de bord facturé vs collecté',
       'Signature personnalisée (ton nom ou celui de ton entreprise) sur les messages clients',
+      "Jusqu'à 3 comptes secondaires",
       'Accès prioritaire aux nouvelles fonctionnalités',
     ],
   },
