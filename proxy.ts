@@ -6,7 +6,12 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // Les images de métadonnées générées par Next.js (opengraph-image,
+  // twitter-image) n'ont pas d'extension de fichier : sans les nommer ici,
+  // elles passent par updateSession, qui redirige les visiteurs anonymes
+  // vers /login — et les robots de WhatsApp ou Facebook reçoivent une page
+  // de connexion au lieu de l'aperçu.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|twitter-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
