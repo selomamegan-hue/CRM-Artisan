@@ -12,6 +12,6 @@ export const config = {
   // vers /login — et les robots de WhatsApp ou Facebook reçoivent une page
   // de connexion au lieu de l'aperçu.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|twitter-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|twitter-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4|webm|json|txt|xml)$).*)',
   ],
 }
