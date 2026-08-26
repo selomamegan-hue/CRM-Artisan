@@ -1,3 +1,4 @@
+import { SITE_STYLE } from './site-style'
 import { LANDING_MARKUP } from './landing-markup'
 import { LandingBehaviour } from './landing-behaviour'
 
@@ -6,7 +7,7 @@ import { LandingBehaviour } from './landing-behaviour'
 export default function Home() {
   return (
     <>
-      <div dangerouslySetInnerHTML={{ __html: LANDING_MARKUP }} />
+      <div dangerouslySetInnerHTML={{ __html: SITE_STYLE + LANDING_MARKUP }} />
       <LandingBehaviour />
     </>
   )

@@ -5,7 +5,7 @@ import { resolveOwnerId } from '@/lib/delegates'
 // '/auth/callback' échange le code d'un lien reçu par e-mail : il est
 // forcément atteint sans session, sinon le middleware le renverrait vers
 // /login avant qu'il ait pu en créer une.
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset-password', '/reset-password/confirm', '/auth/callback']
+const PUBLIC_PATHS = ['/', '/fonctions', '/login', '/signup', '/reset-password', '/reset-password/confirm', '/auth/callback']
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
