@@ -1,18 +1,11 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { siteOrigin } from '@/lib/site-origin'
 import { getUserPlan } from '@/lib/plans-server'
 import { planHasFeature, secondaryAccountLimit } from '@/lib/plans'
 import { isActiveDelegate } from '@/lib/delegates'
-
-async function siteOrigin() {
-  const h = await headers()
-  const host = h.get('x-forwarded-host') ?? h.get('host')
-  const proto = h.get('x-forwarded-proto') ?? 'http'
-  return `${proto}://${host}`
-}
 
 // Seul le compte principal peut inviter — un compte secondaire ne doit
 // jamais pouvoir en inviter un autre en son propre nom.

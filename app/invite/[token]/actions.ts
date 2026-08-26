@@ -1,17 +1,10 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { authCallbackUrl } from '@/lib/site-origin'
 
 export type AcceptInviteState = { error?: string; success?: boolean; email?: string } | undefined
-
-async function siteOrigin() {
-  const h = await headers()
-  const host = h.get('x-forwarded-host') ?? h.get('host')
-  const proto = h.get('x-forwarded-proto') ?? 'http'
-  return `${proto}://${host}`
-}
 
 const FRIENDLY_ERROR: Record<string, string> = {
   already_active: 'Ce compte est déjà secondaire sur un autre atelier Bonfil. Demande à en être retiré avant d’accepter cette invitation, ou déconnecte-toi pour en créer un nouveau.',
@@ -36,7 +29,7 @@ export async function acceptInvite(token: string, _prevState: AcceptInviteState,
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${await siteOrigin()}/invite/${token}/confirm` },
+    options: { emailRedirectTo: await authCallbackUrl(`/invite/${token}/confirm`) },
   })
 
   if (error) return { error: error.message }

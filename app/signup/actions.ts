@@ -1,17 +1,10 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { authCallbackUrl } from '@/lib/site-origin'
 
 export type SignupState = { error?: string; success?: boolean; email?: string } | undefined
-
-async function siteOrigin() {
-  const h = await headers()
-  const host = h.get('x-forwarded-host') ?? h.get('host')
-  const proto = h.get('x-forwarded-proto') ?? 'http'
-  return `${proto}://${host}`
-}
 
 export async function signup(_prevState: SignupState, formData: FormData) {
   const supabase = await createClient()
@@ -22,7 +15,7 @@ export async function signup(_prevState: SignupState, formData: FormData) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: await siteOrigin() },
+    options: { emailRedirectTo: await authCallbackUrl('/app') },
   })
 
   if (error) {
@@ -47,7 +40,7 @@ export async function resendConfirmation(email: string) {
   const { error } = await supabase.auth.resend({
     type: 'signup',
     email,
-    options: { emailRedirectTo: await siteOrigin() },
+    options: { emailRedirectTo: await authCallbackUrl('/app') },
   })
   return { error: error?.message }
 }

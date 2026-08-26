@@ -3,13 +3,15 @@ import { createClient } from '@/lib/supabase/server'
 
 export default async function InviteConfirmPage(props: PageProps<'/invite/[token]/confirm'>) {
   const { token } = await props.params
-  const { code } = await props.searchParams
 
-  if (typeof code !== 'string') redirect(`/invite/${token}`)
-
+  // Le code du lien a déjà été échangé par /auth/callback : sans session
+  // ici, accept_invite s'exécuterait sans utilisateur authentifié.
   const supabase = await createClient()
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-  if (exchangeError) redirect(`/invite/${token}`)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) redirect(`/invite/${token}`)
 
   const { data: status } = await supabase.rpc('accept_invite', { token })
   if (status !== 'ok') redirect(`/invite/${token}?error=${status ?? 'invalid'}`)

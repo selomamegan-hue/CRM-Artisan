@@ -2,7 +2,10 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { resolveOwnerId } from '@/lib/delegates'
 
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset-password', '/reset-password/confirm']
+// '/auth/callback' échange le code d'un lien reçu par e-mail : il est
+// forcément atteint sans session, sinon le middleware le renverrait vers
+// /login avant qu'il ait pu en créer une.
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/reset-password', '/reset-password/confirm', '/auth/callback']
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
