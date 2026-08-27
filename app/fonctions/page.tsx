@@ -14,7 +14,23 @@ export const metadata: Metadata = {
     'retrouver le client, sortir le devis, suivre ce qui reste dû. Films courts à l’appui.',
 }
 
-type Fonction = { n: number; nom: string; ligne: string; film?: string }
+/* La page se refabrique une fois par jour : c'est ce qui fait expirer le
+   badge « nouveau » tout seul, sans qu'on ait à redéployer pour l'éteindre. */
+export const revalidate = 86400
+
+/* Un film reste « nouveau » dix jours après sa date de publication — le
+   temps qu'un artisan qui passe une fois par semaine le voie au moins une
+   fois. Renseigner `publie` le jour où le film sort sur les réseaux ;
+   laisser vide tant qu'il n'est pas annoncé. */
+const JOURS_NOUVEAU = 10
+
+type Fonction = { n: number; nom: string; ligne: string; film?: string; publie?: string }
+
+function estNouveau(publie?: string) {
+  if (!publie) return false
+  const jours = (Date.now() - new Date(publie).getTime()) / 86_400_000
+  return jours >= 0 && jours <= JOURS_NOUVEAU
+}
 
 const COEUR: Fonction[] = [
   { n: 1, nom: 'Enregistrer', ligne: 'Un bouton. Tu parles. C’est gardé.', film: 'f1' },
@@ -39,9 +55,18 @@ const AJOUTEES: Fonction[] = [
   { n: 17, nom: 'Comptes secondaires', ligne: 'Ton associé travaille avec toi, sans toucher à l’abonnement.' },
 ]
 
+const BADGE = '<span class="fn-neuf">NOUVEAU</span>'
+
 function Carte({ f }: { f: Fonction }) {
   const film = f.film ? FILMS.find((x) => x.cle === f.film) : undefined
-  if (film) return <article dangerouslySetInnerHTML={{ __html: film.html }} />
+  if (film) {
+    // Le badge se glisse dans l'affiche, à côté de la durée : c'est le seul
+    // endroit de la carte qui soit déjà en position absolue.
+    const html = estNouveau(f.publie)
+      ? film.html.replace('</button>', BADGE + '</button>')
+      : film.html
+    return <article dangerouslySetInnerHTML={{ __html: html }} />
+  }
 
   return (
     <article className="fn-card fn-soon">
