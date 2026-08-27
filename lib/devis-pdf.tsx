@@ -71,7 +71,7 @@ export type DevisLogo = string
 export type DevisPdfData = {
   number: string
   companyName: string
-  companyPhone: string | null
+  companyAddress: string | null
   companyWhatsapp: string | null
   clientName: string
   clientPhone: string | null
@@ -101,7 +101,7 @@ function DevisDocument({ data }: { data: DevisPdfData }) {
             {data.logo && <Image src={data.logo} style={styles.logo} />}
             <View>
               <Text style={styles.companyName}>{data.companyName}</Text>
-              {data.companyPhone && <Text style={styles.small}>Tél : {data.companyPhone}</Text>}
+              {data.companyAddress && <Text style={styles.small}>{data.companyAddress}</Text>}
               {data.companyWhatsapp && <Text style={styles.small}>WhatsApp : {data.companyWhatsapp}</Text>}
             </View>
           </View>

@@ -48,7 +48,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       .select('excerpt, amount, amount_paid, created_at, clients(name, phone)')
       .eq('id', id)
       .single(),
-    supabase.from('profiles').select('full_name, phone, whatsapp, logo_url').eq('id', ownerId).single(),
+    supabase.from('profiles').select('full_name, address, whatsapp, logo_url').eq('id', ownerId).single(),
   ])
 
   if (!action) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -102,7 +102,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const pdfBuffer = await renderDevisPdf({
     number: version!.number,
     companyName: profile?.full_name?.trim() || 'Artisan',
-    companyPhone: profile?.phone ?? null,
+    companyAddress: profile?.address ?? null,
     companyWhatsapp: profile?.whatsapp ?? null,
     clientName: client?.name ?? 'Client',
     clientPhone: client?.phone ?? null,

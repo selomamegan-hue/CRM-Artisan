@@ -25,10 +25,18 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const ownerId = await resolveOwnerId(supabase, user!.id)
   const isDelegate = await isActiveDelegate(supabase, user!.id)
 
-  const [{ data: profile }, factureActionsResult, delegatesResult] = await Promise.all([
-    supabase.from('profiles').select('full_name, phone, whatsapp, subscription_expires_at, logo_url, vat_registered').eq('id', ownerId).single(),
+  const [{ data: profile }, factureActionsResult, devisActionsResult, delegatesResult] = await Promise.all([
+    supabase.from('profiles').select('full_name, address, whatsapp, subscription_expires_at, logo_url, vat_registered').eq('id', ownerId).single(),
     canSeeDashboard
       ? supabase.from('actions').select('amount, amount_paid').eq('type', 'facture').neq('status', 'annule').not('amount', 'is', null)
+      : Promise.resolve({ data: null }),
+    canSeeDashboard
+      ? supabase
+          .from('actions')
+          .select('amount, amount_paid, devis_versions(validated_at, created_at)')
+          .eq('type', 'devis')
+          .neq('status', 'annule')
+          .not('amount', 'is', null)
       : Promise.resolve({ data: null }),
     !isDelegate && canUseSecondaryAccounts
       ? supabase
@@ -44,12 +52,36 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const secondaryLimit = secondaryAccountLimit(plan)
   const justInvitedLink = invite_token ? await inviteLink(String(invite_token)) : null
 
-  const totalFacture = (factureActionsResult.data ?? []).reduce((sum, a) => sum + (a.amount ?? 0), 0)
-  const totalCollecte = (factureActionsResult.data ?? []).reduce((sum, a) => sum + (a.amount_paid ?? 0), 0)
-  // Facture par facture, jamais en global : un trop-perçu sur un chantier ne
-  // doit pas venir effacer ce qu'un autre client doit encore. C'est la même
-  // règle que la vue Impayés, qui ne retient que les lignes non soldées.
-  const resteAEncaisser = (factureActionsResult.data ?? []).reduce(
+  // Un devis validé vaut facturé : le client a dit oui, l'argent est engagé.
+  // Bonfil ne produit pas de facture — le devis EST le document — donc ne
+  // compter que les actions nées « facture » laisserait un artisan qui
+  // travaille au devis devant un tableau de bord vide.
+  //
+  // Seule la dernière version compte : modifier un devis déjà validé en crée
+  // une nouvelle, sans tampon, puisque le client n'a pas vu ces termes-là.
+  type DevisRow = {
+    amount: number | null
+    amount_paid: number | null
+    devis_versions: { validated_at: string | null; created_at: string }[] | null
+  }
+  const devisValides = ((devisActionsResult.data ?? []) as DevisRow[]).filter((a) => {
+    const versions = a.devis_versions ?? []
+    if (versions.length === 0) return false
+    const derniere = versions.reduce((recente, v) => (v.created_at > recente.created_at ? v : recente))
+    return derniere.validated_at != null
+  })
+
+  const facturees: { amount: number | null; amount_paid: number | null }[] = [
+    ...(factureActionsResult.data ?? []),
+    ...devisValides,
+  ]
+
+  const totalFacture = facturees.reduce((sum, a) => sum + (a.amount ?? 0), 0)
+  const totalCollecte = facturees.reduce((sum, a) => sum + (a.amount_paid ?? 0), 0)
+  // Ligne par ligne, jamais en global : un trop-perçu sur un chantier ne doit
+  // pas venir effacer ce qu'un autre client doit encore. C'est la règle que
+  // la vue Impayés applique déjà, en ne retenant que les lignes non soldées.
+  const resteAEncaisser = facturees.reduce(
     (sum, a) => sum + Math.max(0, (a.amount ?? 0) - (a.amount_paid ?? 0)),
     0,
   )
@@ -65,7 +97,7 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
       : `${PLAN_LABEL[plan]} — ${subscriptionLabel(profile?.subscription_expires_at ?? null, today)}`
 
   const rows = [
-    { label: 'Téléphone', value: profile?.phone || '—' },
+    { label: 'Adresse', value: profile?.address || '—' },
     { label: 'WhatsApp', value: profile?.whatsapp || '—' },
   ]
 
@@ -247,15 +279,15 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
       ) : (
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
-            Téléphone et WhatsApp (apparaissent sur tes devis PDF)
+            Adresse et WhatsApp (apparaissent sur tes devis PDF)
           </p>
           <form action={updateProfileContact} className="flex flex-col gap-2">
-            <input
-              name="phone"
-              type="tel"
-              defaultValue={profile?.phone ?? ''}
-              placeholder="Téléphone — ex : +228 90 12 34 56"
-              className="w-full rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
+            <textarea
+              name="address"
+              rows={2}
+              defaultValue={profile?.address ?? ''}
+              placeholder="Adresse — ex : 01 BP 1442, Lomé"
+              className="w-full resize-none rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
             />
             <input
               name="whatsapp"
@@ -273,7 +305,7 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
       )}
 
       <div className="mt-6">
-        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Activité (factures)</p>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Activité (factures et devis validés)</p>
         {canSeeDashboard ? (
           <div className="flex gap-2.5">
             <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">

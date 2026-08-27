@@ -34,7 +34,7 @@ export async function updateProfileName(formData: FormData) {
 }
 
 export async function updateProfileContact(formData: FormData) {
-  const phone = String(formData.get('phone') ?? '').trim()
+  const address = String(formData.get('address') ?? '').trim()
   const whatsapp = String(formData.get('whatsapp') ?? '').trim()
 
   const supabase = await createClient()
@@ -48,7 +48,7 @@ export async function updateProfileContact(formData: FormData) {
 
   await supabase
     .from('profiles')
-    .update({ phone: phone || null, whatsapp: whatsapp || null })
+    .update({ address: address || null, whatsapp: whatsapp || null })
     .eq('id', user.id)
   redirect('/app/settings?contact_updated=1')
 }
