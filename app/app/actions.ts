@@ -33,6 +33,26 @@ export async function updateProfileName(formData: FormData) {
   redirect('/app/settings?name_updated=1')
 }
 
+export async function updateProfileContact(formData: FormData) {
+  const phone = String(formData.get('phone') ?? '').trim()
+  const whatsapp = String(formData.get('whatsapp') ?? '').trim()
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  // Ces coordonnées partent en en-tête des devis, au nom de l'artisan : un
+  // compte secondaire ne doit pas pouvoir les changer, comme pour le nom.
+  if (await isActiveDelegate(supabase, user.id)) redirect('/app/settings')
+
+  await supabase
+    .from('profiles')
+    .update({ phone: phone || null, whatsapp: whatsapp || null })
+    .eq('id', user.id)
+  redirect('/app/settings?contact_updated=1')
+}
+
 export async function uploadLogo(formData: FormData) {
   const plan = await getUserPlan()
   if (!planHasFeature(plan, 'devis_logo')) redirect('/app/choisir-offre')

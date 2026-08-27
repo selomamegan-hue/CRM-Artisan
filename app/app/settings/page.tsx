@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
-import { signOut, submitFeedback, updateProfileName, uploadLogo, updateVatRegistered } from '../actions'
+import { signOut, submitFeedback, updateProfileName, updateProfileContact, uploadLogo, updateVatRegistered } from '../actions'
 import { inviteSecondaryAccount, revokeSecondaryAccount, inviteLink } from './delegates-actions'
 import { subscriptionStatus, subscriptionLabel, SUBSCRIPTION_STYLE, SUBSCRIPTION_DOT } from '@/lib/subscription'
 import { planHasFeature, secondaryAccountLimit, PLAN_LABEL } from '@/lib/plans'
@@ -10,7 +10,7 @@ import { resolveOwnerId, isActiveDelegate } from '@/lib/delegates'
 import { UpsellBanner } from '@/components/UpsellBanner'
 
 export default async function SettingsPage({ searchParams }: PageProps<'/app/settings'>) {
-  const { feedback, name_updated, logo_updated, logo_error, vat_updated, invite_token, delegate_error, delegate_revoked } =
+  const { feedback, name_updated, contact_updated, logo_updated, logo_error, vat_updated, invite_token, delegate_error, delegate_revoked } =
     await searchParams
   const supabase = await createClient()
   const {
@@ -46,6 +46,13 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
 
   const totalFacture = (factureActionsResult.data ?? []).reduce((sum, a) => sum + (a.amount ?? 0), 0)
   const totalCollecte = (factureActionsResult.data ?? []).reduce((sum, a) => sum + (a.amount_paid ?? 0), 0)
+  // Facture par facture, jamais en global : un trop-perçu sur un chantier ne
+  // doit pas venir effacer ce qu'un autre client doit encore. C'est la même
+  // règle que la vue Impayés, qui ne retient que les lignes non soldées.
+  const resteAEncaisser = (factureActionsResult.data ?? []).reduce(
+    (sum, a) => sum + Math.max(0, (a.amount ?? 0) - (a.amount_paid ?? 0)),
+    0,
+  )
 
   const name = profile?.full_name?.trim() || 'Sans nom'
   const initial = (profile?.full_name?.trim()?.[0] ?? user?.email?.[0] ?? '?').toUpperCase()
@@ -228,14 +235,42 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
         </div>
       )}
 
-      <div className="rounded-xl bg-white px-4 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-        {rows.map((row) => (
-          <div key={row.label} className="flex items-center justify-between border-b border-[#22303A]/[0.14] py-3.5 last:border-b-0">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">{row.label}</span>
-            <span className="text-[15px] font-semibold text-[#22303A]">{row.value}</span>
-          </div>
-        ))}
-      </div>
+      {isDelegate ? (
+        <div className="rounded-xl bg-white px-4 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-center justify-between border-b border-[#22303A]/[0.14] py-3.5 last:border-b-0">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">{row.label}</span>
+              <span className="text-[15px] font-semibold text-[#22303A]">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div>
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
+            Téléphone et WhatsApp (apparaissent sur tes devis PDF)
+          </p>
+          <form action={updateProfileContact} className="flex flex-col gap-2">
+            <input
+              name="phone"
+              type="tel"
+              defaultValue={profile?.phone ?? ''}
+              placeholder="Téléphone — ex : +228 90 12 34 56"
+              className="w-full rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
+            />
+            <input
+              name="whatsapp"
+              type="tel"
+              defaultValue={profile?.whatsapp ?? ''}
+              placeholder="WhatsApp — ex : +228 90 12 34 56"
+              className="w-full rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
+            />
+            <button type="submit" className="self-start rounded bg-[#1A5F7A] px-3 py-2 text-sm font-semibold text-white">
+              Enregistrer
+            </button>
+          </form>
+          {contact_updated === '1' && <p className="mt-1.5 text-[12.5px] text-[#3A9188]">Coordonnées mises à jour.</p>}
+        </div>
+      )}
 
       <div className="mt-6">
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Activité (factures)</p>
@@ -250,8 +285,8 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
               <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Collecté</span>
             </div>
             <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-              <span className="block text-[15px] font-bold text-[#D97B4F]">{formatAmount(totalFacture - totalCollecte)}</span>
-              <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Restant dû</span>
+              <span className="block text-[15px] font-bold text-[#D97B4F]">{formatAmount(resteAEncaisser)}</span>
+              <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Reste à encaisser</span>
             </div>
           </div>
         ) : (
