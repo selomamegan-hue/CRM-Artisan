@@ -30,10 +30,13 @@ export function planHasFeature(plan: Plan, feature: Feature): boolean {
   return PLAN_FEATURES[plan].includes(feature)
 }
 
-// Notes issues de la transcription IA — coûtent un appel OpenAI, donc
-// plafonnées sur l'offre Pro. null = illimité.
+// Notes issues de la transcription IA. Le plafond ne protège plus un coût —
+// le fournisseur actuel ne facture rien — mais les limites de débit de son
+// palier gratuit, et il garde à Premium son argument : l'illimité. À 100,
+// un artisan seul ne le rencontre jamais ; un atelier qui dicte toute la
+// journée, si. null = illimité.
 const VOICE_NOTE_MONTHLY_LIMIT: Partial<Record<Plan, number>> = {
-  pro: 30,
+  pro: 100,
 }
 
 export function voiceNoteMonthlyLimit(plan: Plan): number | null {

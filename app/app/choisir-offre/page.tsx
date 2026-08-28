@@ -11,7 +11,7 @@ const PLAN_PITCH: Record<Exclude<Plan, 'essai'>, { tagline: string; monthly: num
       'Le Fil, Clients, historique complet',
       'Saisie manuelle de note',
       'Appel et WhatsApp en un tap',
-      'Notes vocales avec transcription IA (30/mois)',
+      'Notes vocales avec transcription IA (100/mois)',
     ],
   },
   premium: {
