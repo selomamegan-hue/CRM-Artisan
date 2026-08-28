@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { openai } from '@/lib/openai'
+import { openai, TRANSCRIBE_MODEL, EXTRACT_MODEL, EXTRACT_JSON_MODE } from '@/lib/openai'
 import { findBestClientMatch } from '@/lib/client-match'
 import { voiceNoteMonthlyLimit } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
@@ -19,6 +19,37 @@ const EXTRACTION_SCHEMA = {
   },
   required: ['client_name', 'type', 'due_date', 'amount', 'excerpt'],
   additionalProperties: false,
+}
+
+type Extraction = {
+  client_name: string | null
+  type: 'devis' | 'rappel' | 'facture' | 'autre'
+  due_date: string | null
+  amount: number | null
+  excerpt: string
+}
+
+/* En mode `json_object`, le fournisseur promet du JSON valide, pas le JSON
+   attendu : la forme se décrit dans la consigne et se vérifie au retour. */
+const FORME_ATTENDUE =
+  ' Réponds uniquement par un objet JSON, sans texte autour, avec exactement ces cinq clés :' +
+  ' "client_name" (chaîne ou null), "type" ("devis", "rappel", "facture" ou "autre"),' +
+  ' "due_date" (chaîne "AAAA-MM-JJ" ou null), "amount" (nombre ou null),' +
+  ' "excerpt" (chaîne : résumé très court de l\'action à faire, en français).'
+
+function extractionValide(v: unknown): v is Extraction {
+  if (typeof v !== 'object' || v === null) return false
+  const o = v as Record<string, unknown>
+  const chaineOuNull = (x: unknown) => x === null || typeof x === 'string'
+  return (
+    chaineOuNull(o.client_name) &&
+    typeof o.type === 'string' &&
+    ['devis', 'rappel', 'facture', 'autre'].includes(o.type) &&
+    (o.due_date === null || (typeof o.due_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.due_date))) &&
+    (o.amount === null || (typeof o.amount === 'number' && Number.isFinite(o.amount))) &&
+    typeof o.excerpt === 'string' &&
+    o.excerpt.trim().length > 0
+  )
 }
 
 export async function POST(request: Request) {
@@ -62,7 +93,7 @@ export async function POST(request: Request) {
   try {
     const transcription = await openai.audio.transcriptions.create({
       file: audio,
-      model: 'whisper-1',
+      model: TRANSCRIBE_MODEL,
       language: 'fr',
     })
     transcript = transcription.text.trim()
@@ -78,33 +109,28 @@ export async function POST(request: Request) {
   const today = now.toISOString().slice(0, 10)
   const weekday = WEEKDAYS[now.getDay()]
 
-  let extracted: {
-    client_name: string | null
-    type: 'devis' | 'rappel' | 'facture' | 'autre'
-    due_date: string | null
-    amount: number | null
-    excerpt: string
-  }
+  let extracted: Extraction
+
+  const consigne = `Tu extrais les informations structurées d'une note vocale dictée par un électricien indépendant en français, juste après une visite ou un appel avec un client. Nous sommes le ${today} (${weekday}). Résous les dates relatives ("mardi prochain", "dans 3 jours", "demain") par rapport à cette date. Si aucune échéance n'est mentionnée, due_date doit être null. Si le nom du client n'est pas clairement mentionné, client_name doit être null. Si aucun montant n'est mentionné, amount doit être null.`
 
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: EXTRACT_MODEL,
       messages: [
-        {
-          role: 'system',
-          content: `Tu extrais les informations structurées d'une note vocale dictée par un électricien indépendant en français, juste après une visite ou un appel avec un client. Nous sommes le ${today} (${weekday}). Résous les dates relatives ("mardi prochain", "dans 3 jours", "demain") par rapport à cette date. Si aucune échéance n'est mentionnée, due_date doit être null. Si le nom du client n'est pas clairement mentionné, client_name doit être null. Si aucun montant n'est mentionné, amount doit être null.`,
-        },
+        { role: 'system', content: EXTRACT_JSON_MODE === 'object' ? consigne + FORME_ATTENDUE : consigne },
         { role: 'user', content: transcript },
       ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'extraction', strict: true, schema: EXTRACTION_SCHEMA },
-      },
+      response_format:
+        EXTRACT_JSON_MODE === 'object'
+          ? { type: 'json_object' }
+          : { type: 'json_schema', json_schema: { name: 'extraction', strict: true, schema: EXTRACTION_SCHEMA } },
     })
 
     const raw = completion.choices[0]?.message?.content
     if (!raw) throw new Error('no content')
-    extracted = JSON.parse(raw)
+    const candidat = JSON.parse(raw)
+    if (!extractionValide(candidat)) throw new Error('forme inattendue')
+    extracted = candidat
   } catch {
     return NextResponse.json({ error: 'extraction_failed' }, { status: 502 })
   }
