@@ -223,3 +223,26 @@ export async function shareDevis(id: string) {
   revalidatePath(`/app/actions/${id}`)
   redirect(result.ok ? `/app/actions/${id}` : `/app/actions/${id}?partage=${result.reason}`)
 }
+
+// Éteindre un lien parti au mauvais numéro. On efface le jeton plutôt que
+// de le marquer révoqué : plus rien ne correspond, la fonction SQL publique
+// ne renvoie plus rien, et l'artisan peut en refabriquer un aussitôt — sans
+// que cela compte comme un nouvel envoi, puisque le devis reste envoyé.
+export async function revokeDevisLink(id: string) {
+  const supabase = await createClient()
+
+  const { data: version } = await supabase
+    .from('devis_versions')
+    .select('id, status')
+    .eq('action_id', id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (version && version.status === 'envoye') {
+    await supabase.from('devis_versions').update({ public_token: null }).eq('id', version.id)
+  }
+
+  revalidatePath(`/app/actions/${id}`)
+  redirect(`/app/actions/${id}?partage=revoque`)
+}

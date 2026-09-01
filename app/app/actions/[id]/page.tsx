@@ -10,7 +10,7 @@ import { getUserPlan } from '@/lib/plans-server'
 import { countDevisSentThisMonth } from '@/lib/devis-versions'
 import { siteOrigin } from '@/lib/site-origin'
 import { resolveOwnerId } from '@/lib/delegates'
-import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem, markDevisValidated, updateDevisTotals, shareDevis } from './actions'
+import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem, markDevisValidated, updateDevisTotals, shareDevis, revokeDevisLink } from './actions'
 import { PaymentReceipt } from './receipt'
 import { DevisShare } from './devis-share'
 import { UpsellBanner } from '@/components/UpsellBanner'
@@ -229,8 +229,19 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
             </p>
           )}
 
+          {partage === 'revoque' && (
+            <p className="mb-2 text-[12px] font-semibold text-[#D97B4F]">
+              Lien désactivé. L&apos;adresse déjà envoyée ne s&apos;ouvre plus.
+            </p>
+          )}
+
           {lienDevis && messageDevis ? (
-            <DevisShare url={lienDevis} message={messageDevis} phone={client?.phone ?? null} />
+            <DevisShare
+              url={lienDevis}
+              message={messageDevis}
+              phone={client?.phone ?? null}
+              revoke={revokeDevisLink.bind(null, action.id)}
+            />
           ) : (
             !devisQuotaExhausted && (
               <form action={shareDevis.bind(null, action.id)} className="mb-3">

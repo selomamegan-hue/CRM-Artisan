@@ -6,7 +6,17 @@ import { whatsappLink } from '@/lib/whatsapp'
 /* Le lien public d'un devis envoyé. WhatsApp d'abord — c'est le geste
    naturel — mais la copie reste là pour les clients qu'on joint autrement
    (SMS, e-mail, ou un numéro qui n'est pas dans la fiche). */
-export function DevisShare({ url, message, phone }: { url: string; message: string; phone: string | null }) {
+export function DevisShare({
+  url,
+  message,
+  phone,
+  revoke,
+}: {
+  url: string
+  message: string
+  phone: string | null
+  revoke: () => Promise<void>
+}) {
   const [copied, setCopied] = useState(false)
 
   return (
@@ -41,6 +51,26 @@ export function DevisShare({ url, message, phone }: { url: string; message: stri
       <p className="mt-2 text-[11.5px] leading-snug text-[#8B9298]">
         Le client ouvre le devis sans compte Bonfil. Personne d&apos;autre ne peut deviner cette adresse.
       </p>
+
+      {/* Envoyé au mauvais numéro : le lien s'éteint ici. Il ne se rallume
+          pas — on en fabrique un neuf, et l'ancien reste mort. D'où la
+          confirmation avant. */}
+      <form
+        action={revoke}
+        onSubmit={(e) => {
+          if (
+            !confirm(
+              "Désactiver ce lien ?\n\nL'adresse déjà envoyée cessera de fonctionner, définitivement. Vous pourrez en créer une nouvelle."
+            )
+          ) {
+            e.preventDefault()
+          }
+        }}
+      >
+        <button type="submit" className="mt-2 text-[11.5px] font-semibold text-[#D97B4F] underline underline-offset-2">
+          Désactiver ce lien
+        </button>
+      </form>
     </div>
   )
 }
