@@ -65,8 +65,11 @@ export async function recordPayment(id: string, formData: FormData) {
 }
 
 export async function markDevisValidated(id: string) {
+  // Marquer un devis accepté est une information de gestion, pas un ornement :
+  // elle décide de ce qui est vraiment dû (voir lib/encours.ts). Elle suit donc
+  // le devis lui-même. Seul le tampon VALIDÉ imprimé sur le PDF reste Gold.
   const plan = await getUserPlan()
-  if (!planHasFeature(plan, 'devis_stamps')) redirect('/app/choisir-offre')
+  if (!planHasFeature(plan, 'devis_pdf')) redirect('/app/choisir-offre')
 
   const supabase = await createClient()
 

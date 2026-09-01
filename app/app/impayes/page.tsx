@@ -5,15 +5,7 @@ import { dueLabel } from '@/lib/urgency'
 import { planHasFeature } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { UpsellBanner } from '@/components/UpsellBanner'
-
-type ActionRow = {
-  id: string
-  excerpt: string
-  amount: number
-  amount_paid: number
-  due_date: string | null
-  clients: { name: string; phone: string | null } | null
-}
+import { fetchEncours, totalEncours } from '@/lib/encours'
 
 export default async function ImpayesPage() {
   const supabase = await createClient()
@@ -34,24 +26,15 @@ export default async function ImpayesPage() {
     )
   }
 
-  const { data: actions } = await supabase
-    .from('actions')
-    .select('id, excerpt, amount, amount_paid, due_date, clients(name, phone)')
-    .not('amount', 'is', null)
-    .neq('status', 'annule')
-    .returns<ActionRow[]>()
-
   const today = new Date()
 
-  const rows = (actions ?? [])
-    .filter((a) => a.amount > a.amount_paid)
-    .sort((a, b) => {
-      if (!a.due_date) return 1
-      if (!b.due_date) return -1
-      return a.due_date.localeCompare(b.due_date)
-    })
+  const rows = (await fetchEncours(supabase)).sort((a, b) => {
+    if (!a.due_date) return 1
+    if (!b.due_date) return -1
+    return a.due_date.localeCompare(b.due_date)
+  })
 
-  const totalDue = rows.reduce((sum, a) => sum + (a.amount - a.amount_paid), 0)
+  const totalDue = totalEncours(rows)
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-6 md:max-w-lg md:px-10 md:pt-10">

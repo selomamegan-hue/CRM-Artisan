@@ -86,7 +86,6 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
   const signature = canUseSignature ? profile?.full_name?.trim() || null : null
   const canTrackPayments = planHasFeature(plan, 'payments')
   const canUseDevisPdf = planHasFeature(plan, 'devis_pdf')
-  const canUseStamps = planHasFeature(plan, 'devis_stamps')
 
   const isNewDevisSend = !devisVersion || devisVersion.status === 'brouillon'
   const monthlyLimit = devisMonthlyLimit(plan)
@@ -211,7 +210,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
                 <>
                   Devis <span className="font-semibold text-[#22303A]">{devisVersion.number}</span> envoyé — le modifier
                   créera une nouvelle version.
-                  {canUseStamps && devisVersion.validated_at && (
+                  {devisVersion.validated_at && (
                     <span className="ml-1.5 font-semibold text-[#3A9188]">✓ Validé par le client</span>
                   )}
                 </>
@@ -255,7 +254,9 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
             )
           )}
 
-          {canUseStamps && devisVersion?.status === 'envoye' && !devisVersion.validated_at && (
+          {/* Ouvert à toutes les offres qui ont le devis : c'est ce marquage qui
+              décide de ce qui compte comme dû. Le tampon imprimé, lui, reste Gold. */}
+          {devisVersion?.status === 'envoye' && !devisVersion.validated_at && (
             <form action={markDevisValidated.bind(null, action.id)} className="mb-3">
               <button
                 type="submit"

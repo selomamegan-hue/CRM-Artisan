@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
@@ -8,9 +9,32 @@ import { planHasFeature, secondaryAccountLimit, PLAN_LABEL } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { resolveOwnerId, isActiveDelegate } from '@/lib/delegates'
 import { UpsellBanner } from '@/components/UpsellBanner'
+import { fetchEncours, totalEncours, devisAccepte, type DevisVersionResume } from '@/lib/encours'
+
+/* Facturé et Collecté sont des flux : ils n'ont de sens que sur une période.
+   Reste à encaisser est un stock — une photo prise aujourd'hui — d'où sa
+   place à part, hors du sélecteur. « Reste à encaisser en juillet » ne
+   voudrait rien dire. */
+const PERIODES = [
+  { cle: 'mois', label: 'Ce mois' },
+  { cle: 'trimestre', label: '3 mois' },
+  { cle: 'annee', label: 'Cette année' },
+  { cle: 'tout', label: 'Tout' },
+] as const
+
+type PeriodeCle = (typeof PERIODES)[number]['cle']
+
+function debutPeriode(cle: PeriodeCle, aujourdhui: Date): Date | null {
+  const a = aujourdhui.getFullYear()
+  const m = aujourdhui.getMonth()
+  if (cle === 'mois') return new Date(a, m, 1)
+  if (cle === 'trimestre') return new Date(a, m - 2, 1)
+  if (cle === 'annee') return new Date(a, 0, 1)
+  return null
+}
 
 export default async function SettingsPage({ searchParams }: PageProps<'/app/settings'>) {
-  const { feedback, name_updated, contact_updated, logo_updated, logo_error, vat_updated, invite_token, delegate_error, delegate_revoked } =
+  const { feedback, name_updated, contact_updated, logo_updated, logo_error, vat_updated, invite_token, delegate_error, delegate_revoked, periode } =
     await searchParams
   const supabase = await createClient()
   const {
@@ -25,19 +49,34 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const ownerId = await resolveOwnerId(supabase, user!.id)
   const isDelegate = await isActiveDelegate(supabase, user!.id)
 
-  const [{ data: profile }, factureActionsResult, devisActionsResult, delegatesResult] = await Promise.all([
+  const periodeActive: PeriodeCle = PERIODES.some((p) => p.cle === periode) ? (periode as PeriodeCle) : 'mois'
+  const debut = debutPeriode(periodeActive, new Date())
+
+  // Le document porte la date qui compte pour « Facturé » — celle imprimée
+  // sur le devis. L'encaissement, lui, se lit dans la table des paiements :
+  // amount_paid est un cumul sans date, il rangerait un acompte de mars dans
+  // le mois où on le regarde.
+  const emisQuery = supabase
+    .from('actions')
+    .select('type, amount, devis_versions(validated_at, created_at)')
+    .in('type', ['facture', 'devis'])
+    .neq('status', 'annule')
+    .not('amount', 'is', null)
+  const encaissesQuery = supabase.from('payments').select('amount')
+
+  const [{ data: profile }, emisResult, encaissesResult, encours, delegatesResult] = await Promise.all([
     supabase.from('profiles').select('full_name, address, whatsapp, subscription_expires_at, logo_url, vat_registered').eq('id', ownerId).single(),
     canSeeDashboard
-      ? supabase.from('actions').select('amount, amount_paid').eq('type', 'facture').neq('status', 'annule').not('amount', 'is', null)
+      ? debut
+        ? emisQuery.gte('created_at', debut.toISOString())
+        : emisQuery
       : Promise.resolve({ data: null }),
     canSeeDashboard
-      ? supabase
-          .from('actions')
-          .select('amount, amount_paid, devis_versions(validated_at, created_at)')
-          .eq('type', 'devis')
-          .neq('status', 'annule')
-          .not('amount', 'is', null)
+      ? debut
+        ? encaissesQuery.gte('created_at', debut.toISOString())
+        : encaissesQuery
       : Promise.resolve({ data: null }),
+    canSeeDashboard ? fetchEncours(supabase) : Promise.resolve([]),
     !isDelegate && canUseSecondaryAccounts
       ? supabase
           .from('delegates')
@@ -52,39 +91,23 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const secondaryLimit = secondaryAccountLimit(plan)
   const justInvitedLink = invite_token ? await inviteLink(String(invite_token)) : null
 
-  // Un devis validé vaut facturé : le client a dit oui, l'argent est engagé.
+  // Un devis accepté vaut facturé : le client a dit oui, l'argent est engagé.
   // Bonfil ne produit pas de facture — le devis EST le document — donc ne
   // compter que les actions nées « facture » laisserait un artisan qui
   // travaille au devis devant un tableau de bord vide.
-  //
-  // Seule la dernière version compte : modifier un devis déjà validé en crée
-  // une nouvelle, sans tampon, puisque le client n'a pas vu ces termes-là.
-  type DevisRow = {
-    amount: number | null
-    amount_paid: number | null
-    devis_versions: { validated_at: string | null; created_at: string }[] | null
-  }
-  const devisValides = ((devisActionsResult.data ?? []) as DevisRow[]).filter((a) => {
-    const versions = a.devis_versions ?? []
-    if (versions.length === 0) return false
-    const derniere = versions.reduce((recente, v) => (v.created_at > recente.created_at ? v : recente))
-    return derniere.validated_at != null
-  })
+  type EmisRow = { type: string; amount: number | null; devis_versions: DevisVersionResume[] | null }
+  const emis = ((emisResult.data ?? []) as EmisRow[]).filter(
+    (a) => a.type !== 'devis' || devisAccepte(a.devis_versions),
+  )
 
-  const facturees: { amount: number | null; amount_paid: number | null }[] = [
-    ...(factureActionsResult.data ?? []),
-    ...devisValides,
-  ]
-
-  const totalFacture = facturees.reduce((sum, a) => sum + (a.amount ?? 0), 0)
-  const totalCollecte = facturees.reduce((sum, a) => sum + (a.amount_paid ?? 0), 0)
-  // Ligne par ligne, jamais en global : un trop-perçu sur un chantier ne doit
-  // pas venir effacer ce qu'un autre client doit encore. C'est la règle que
-  // la vue Impayés applique déjà, en ne retenant que les lignes non soldées.
-  const resteAEncaisser = facturees.reduce(
-    (sum, a) => sum + Math.max(0, (a.amount ?? 0) - (a.amount_paid ?? 0)),
+  const totalFacture = emis.reduce((sum, a) => sum + (a.amount ?? 0), 0)
+  const totalCollecte = ((encaissesResult.data ?? []) as { amount: number | null }[]).reduce(
+    (sum, p) => sum + (p.amount ?? 0),
     0,
   )
+  // Le même calcul que la vue Impayés, à la ligne près — c'est tout l'objet
+  // de lib/encours.ts : les deux écrans ne peuvent plus annoncer deux chiffres.
+  const resteAEncaisser = totalEncours(encours)
 
   const name = profile?.full_name?.trim() || 'Sans nom'
   const initial = (profile?.full_name?.trim()?.[0] ?? user?.email?.[0] ?? '?').toUpperCase()
@@ -307,20 +330,50 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
       <div className="mt-6">
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Activité (factures et devis validés)</p>
         {canSeeDashboard ? (
-          <div className="flex gap-2.5">
-            <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-              <span className="block text-[15px] font-bold text-[#22303A]">{formatAmount(totalFacture)}</span>
-              <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Facturé</span>
+          <>
+            <div className="mb-2 flex gap-1.5">
+              {PERIODES.map((p) => (
+                <Link
+                  key={p.cle}
+                  href={`/app/settings?periode=${p.cle}`}
+                  scroll={false}
+                  className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${
+                    p.cle === periodeActive ? 'bg-[#1A5F7A] text-white' : 'bg-white text-[#5B6B72]'
+                  }`}
+                >
+                  {p.label}
+                </Link>
+              ))}
             </div>
-            <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-              <span className="block text-[15px] font-bold text-[#3A9188]">{formatAmount(totalCollecte)}</span>
-              <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Collecté</span>
+
+            <div className="flex gap-2.5">
+              <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+                <span className="block text-[15px] font-bold text-[#22303A]">{formatAmount(totalFacture)}</span>
+                <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Facturé</span>
+              </div>
+              <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
+                <span className="block text-[15px] font-bold text-[#3A9188]">{formatAmount(totalCollecte)}</span>
+                <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Collecté</span>
+              </div>
             </div>
-            <div className="flex-1 rounded-[10px] bg-white py-3.5 text-center shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]">
-              <span className="block text-[15px] font-bold text-[#D97B4F]">{formatAmount(resteAEncaisser)}</span>
-              <span className="text-[10.5px] uppercase tracking-[0.03em] text-[#5B6B72]">Reste à encaisser</span>
-            </div>
-          </div>
+
+            {/* Hors période, volontairement : c'est l'état d'aujourd'hui, et
+                c'est exactement ce que la vue Impayés détaille. */}
+            <Link
+              href="/app/impayes"
+              className="mt-2.5 flex items-center justify-between rounded-[10px] bg-white px-3.5 py-3 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]"
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">
+                Reste à encaisser <span className="normal-case tracking-normal text-[#8B9298]">· à ce jour</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-[15px] font-bold text-[#D97B4F]">{formatAmount(resteAEncaisser)}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[#8B9298]">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </span>
+            </Link>
+          </>
         ) : (
           <UpsellBanner text="Tableau de bord facturé vs collecté" plan="Gold" />
         )}

@@ -4,22 +4,20 @@ import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
 import { planHasFeature } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
+import { fetchEncours, totalEncours } from '@/lib/encours'
 
 export default async function ClientsPage() {
   const supabase = await createClient()
   const plan = await getUserPlan()
   const canTrackPayments = planHasFeature(plan, 'payments')
 
-  const [{ data: clients }, unpaidActionsResult] = await Promise.all([
+  const [{ data: clients }, unpaid] = await Promise.all([
     supabase.from('clients').select('id, name, phone, is_minimal').is('archived_at', null).order('name', { ascending: true }),
-    canTrackPayments
-      ? supabase.from('actions').select('amount, amount_paid').not('amount', 'is', null).neq('status', 'annule')
-      : Promise.resolve({ data: null }),
+    canTrackPayments ? fetchEncours(supabase) : Promise.resolve([]),
   ])
 
   const rows = clients ?? []
-  const unpaid = (unpaidActionsResult.data ?? []).filter((a) => a.amount != null && a.amount > a.amount_paid)
-  const totalDue = unpaid.reduce((sum, a) => sum + (a.amount - a.amount_paid), 0)
+  const totalDue = totalEncours(unpaid)
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col px-6 pt-6 md:max-w-lg md:px-10 md:pt-10">
