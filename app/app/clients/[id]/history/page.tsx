@@ -72,10 +72,20 @@ export default async function ClientHistoryPage({ params }: PageProps<'/app/clie
               <p className="mt-1 text-[13.5px] leading-relaxed text-[#22303A]">{note.transcript}</p>
               {note.actions.length > 0 && (
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {/* L'historique est le seul chemin vers un devis déjà soldé :
+                      il sort du Fil (plus « à faire ») comme des Impayés (plus
+                      de solde). Ces étiquettes doivent donc s'ouvrir. */}
                   {note.actions.map((a) => (
-                    <span key={a.id} className={`rounded-[5px] px-1.5 py-0.5 text-[10.5px] font-semibold ${STATUS_STYLE[a.status]}`}>
+                    <Link
+                      key={a.id}
+                      href={`/app/actions/${a.id}`}
+                      className={`flex items-center gap-1 rounded-[5px] px-2 py-1 text-[10.5px] font-semibold active:opacity-70 ${STATUS_STYLE[a.status]}`}
+                    >
                       {TYPE_LABEL[a.type]} · {STATUS_LABEL[a.status]}
-                    </span>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </Link>
                   ))}
                 </div>
               )}
