@@ -1,30 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserPlan } from '@/lib/plans-server'
-import { planHasFeature, devisMonthlyLimit } from '@/lib/plans'
-import { renderDevisPdf, type DevisLogo } from '@/lib/devis-pdf'
-import { getOrCreateDraftVersion, countDevisSentThisMonth } from '@/lib/devis-versions'
+import { planHasFeature } from '@/lib/plans'
+import { renderDevisPdf, fetchLogo } from '@/lib/devis-pdf'
+import { sendDevisVersion } from '@/lib/devis-versions'
 import { resolveOwnerId } from '@/lib/delegates'
-
-async function fetchLogo(url: string): Promise<DevisLogo | null> {
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
-    const res = await fetch(url, { signal: controller.signal })
-    clearTimeout(timeout)
-    if (!res.ok) return null
-
-    const contentType = res.headers.get('content-type') ?? ''
-    const mime = contentType.includes('png') ? 'image/png' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'image/jpeg' : null
-    if (!mime) return null
-
-    const base64 = Buffer.from(await res.arrayBuffer()).toString('base64')
-    return `data:${mime};base64,${base64}`
-  } catch {
-    // Un logo manquant ne doit jamais faire échouer tout le PDF.
-    return null
-  }
-}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -53,41 +33,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   if (!action) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  // Downloading the PDF is what "sending" a devis means in Bonfil — the
-  // current draft (or a freshly created one, if none exists yet) locks
-  // here and keeps its number forever. Re-downloading an already-sent
-  // devis just re-renders the same locked snapshot.
-  let { data: version } = await supabase
-    .from('devis_versions')
-    .select('id, number, status, validated_at, discount_amount, vat_rate')
-    .eq('action_id', id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (!version || version.status === 'brouillon') {
-    const limit = devisMonthlyLimit(plan)
-    if (limit != null) {
-      const used = await countDevisSentThisMonth(supabase, ownerId)
-      if (used >= limit) {
-        return NextResponse.json({ error: 'devis_quota_exceeded', limit }, { status: 403 })
-      }
-    }
-
-    const versionId = version ? version.id : await getOrCreateDraftVersion(supabase, ownerId, id)
-    const { data: locked } = await supabase
-      .from('devis_versions')
-      .update({ status: 'envoye', sent_at: new Date().toISOString() })
-      .eq('id', versionId)
-      .select('id, number, status, validated_at, discount_amount, vat_rate')
-      .single()
-    version = locked
+  // Télécharger le PDF, c'est envoyer le devis : la version se fige ici et
+  // garde son numéro pour toujours. Retélécharger un devis déjà envoyé
+  // rejoue le même instantané, sans rien consommer du quota.
+  const sent = await sendDevisVersion(supabase, ownerId, id, plan)
+  if (!sent.ok) {
+    return sent.reason === 'quota'
+      ? NextResponse.json({ error: 'devis_quota_exceeded', limit: sent.limit }, { status: 403 })
+      : NextResponse.json({ error: 'not_found' }, { status: 404 })
   }
+  const version = sent.version
 
   const { data: items } = await supabase
     .from('devis_items')
     .select('description, quantity, unit_price')
-    .eq('version_id', version!.id)
+    .eq('version_id', version.id)
     .order('position')
 
   const client = action.clients as unknown as { name: string; phone: string | null } | null
@@ -97,10 +57,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const logo = canUseLogo && profile?.logo_url ? await fetchLogo(profile.logo_url) : null
   const paidInFull = canUseStamps && action.amount != null && action.amount - action.amount_paid <= 0
-  const validated = canUseStamps && version!.validated_at != null
+  const validated = canUseStamps && version.validated_at != null
 
   const pdfBuffer = await renderDevisPdf({
-    number: version!.number,
+    number: version.number,
     companyName: profile?.full_name?.trim() || 'Artisan',
     companyAddress: profile?.address ?? null,
     companyWhatsapp: profile?.whatsapp ?? null,
@@ -113,14 +73,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     logo,
     validated,
     paidInFull,
-    discountAmount: Number(version!.discount_amount ?? 0),
-    vatRate: version!.vat_rate != null ? Number(version!.vat_rate) : null,
+    discountAmount: Number(version.discount_amount ?? 0),
+    vatRate: version.vat_rate != null ? Number(version.vat_rate) : null,
   })
 
   return new NextResponse(new Uint8Array(pdfBuffer), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="devis-${version!.number}.pdf"`,
+      'Content-Disposition': `inline; filename="devis-${version.number}.pdf"`,
     },
   })
 }

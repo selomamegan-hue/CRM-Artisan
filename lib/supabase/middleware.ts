@@ -5,7 +5,7 @@ import { resolveOwnerId } from '@/lib/delegates'
 // '/auth/callback' échange le code d'un lien reçu par e-mail : il est
 // forcément atteint sans session, sinon le middleware le renverrait vers
 // /login avant qu'il ait pu en créer une.
-const PUBLIC_PATHS = ['/', '/fonctions', '/login', '/signup', '/reset-password', '/reset-password/confirm', '/auth/callback']
+const PUBLIC_PATHS = ['/', '/fonctions', '/partenaire', '/login', '/signup', '/reset-password', '/reset-password/confirm', '/auth/callback']
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -34,7 +34,8 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/api/') || pathname.startsWith('/invite/')
+  // '/devis/<jeton>' est lu par le client de l'artisan, qui n'a pas de compte.
+  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/devis/') || pathname.startsWith('/api/') || pathname.startsWith('/invite/')
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()

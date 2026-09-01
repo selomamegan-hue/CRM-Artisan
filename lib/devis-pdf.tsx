@@ -173,3 +173,28 @@ function DevisDocument({ data }: { data: DevisPdfData }) {
 export async function renderDevisPdf(data: DevisPdfData): Promise<Buffer> {
   return renderToBuffer(<DevisDocument data={data} />)
 }
+
+// Le logo vit sur une URL publique (Supabase Storage). Un logo injoignable
+// ou trop lent ne doit jamais faire échouer tout le devis : on rend sans.
+export async function fetchLogo(url: string): Promise<DevisLogo | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!res.ok) return null
+
+    const contentType = res.headers.get('content-type') ?? ''
+    const mime = contentType.includes('png')
+      ? 'image/png'
+      : contentType.includes('jpeg') || contentType.includes('jpg')
+        ? 'image/jpeg'
+        : null
+    if (!mime) return null
+
+    const base64 = Buffer.from(await res.arrayBuffer()).toString('base64')
+    return `data:${mime};base64,${base64}`
+  } catch {
+    return null
+  }
+}

@@ -1,5 +1,7 @@
 import 'server-only'
+import { randomBytes } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { devisMonthlyLimit, type Plan } from '@/lib/plans'
 
 async function nextDevisNumber(supabase: SupabaseClient, userId: string): Promise<string> {
   const { count } = await supabase
@@ -98,4 +100,77 @@ export async function countDevisSentThisMonth(supabase: SupabaseClient, userId: 
     .eq('status', 'envoye')
     .gte('sent_at', startOfMonth)
   return count ?? 0
+}
+
+// Un jeton de partage doit rester impossible à deviner : 24 octets tirés au
+// hasard, soit 48 caractères hexadécimaux.
+function newPublicToken(): string {
+  return randomBytes(24).toString('hex')
+}
+
+export type SentDevisVersion = {
+  id: string
+  number: string
+  status: string
+  validated_at: string | null
+  discount_amount: number | null
+  vat_rate: number | null
+  public_token: string
+}
+
+const SENT_COLUMNS = 'id, number, status, validated_at, discount_amount, vat_rate, public_token'
+
+export type SendResult =
+  | { ok: true; version: SentDevisVersion }
+  | { ok: false; reason: 'quota'; limit: number }
+  | { ok: false; reason: 'failed' }
+
+// Envoyer un devis, c'est le figer. Le brouillon courant (ou un brouillon
+// créé à la volée) passe en 'envoye', garde son numéro pour toujours et
+// reçoit son lien public. Renvoyer un devis déjà envoyé ne consomme rien du
+// quota mensuel et redonne le même lien : le client qui rouvre son adresse
+// doit retrouver exactement le document qu'on lui a montré.
+export async function sendDevisVersion(
+  supabase: SupabaseClient,
+  ownerId: string,
+  actionId: string,
+  plan: Plan
+): Promise<SendResult> {
+  const { data: latest } = await supabase
+    .from('devis_versions')
+    .select(SENT_COLUMNS)
+    .eq('action_id', actionId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (latest && latest.status === 'envoye') {
+    if (latest.public_token) return { ok: true, version: latest as SentDevisVersion }
+
+    // Devis figé avant l'arrivée des liens publics : on lui en attribue un
+    // sans le compter comme un nouvel envoi.
+    const { data: backfilled } = await supabase
+      .from('devis_versions')
+      .update({ public_token: newPublicToken() })
+      .eq('id', latest.id)
+      .select(SENT_COLUMNS)
+      .single()
+    return backfilled ? { ok: true, version: backfilled as SentDevisVersion } : { ok: false, reason: 'failed' }
+  }
+
+  const limit = devisMonthlyLimit(plan)
+  if (limit != null) {
+    const used = await countDevisSentThisMonth(supabase, ownerId)
+    if (used >= limit) return { ok: false, reason: 'quota', limit }
+  }
+
+  const versionId = latest ? latest.id : await getOrCreateDraftVersion(supabase, ownerId, actionId)
+  const { data: locked } = await supabase
+    .from('devis_versions')
+    .update({ status: 'envoye', sent_at: new Date().toISOString(), public_token: newPublicToken() })
+    .eq('id', versionId)
+    .select(SENT_COLUMNS)
+    .single()
+
+  return locked ? { ok: true, version: locked as SentDevisVersion } : { ok: false, reason: 'failed' }
 }

@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { planHasFeature } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
-import { getOrCreateDraftVersion, recomputeActionAmount } from '@/lib/devis-versions'
+import { getOrCreateDraftVersion, recomputeActionAmount, sendDevisVersion } from '@/lib/devis-versions'
 import { resolveOwnerId } from '@/lib/delegates'
 
 const TOGO_VAT_RATE = 18
@@ -203,4 +203,23 @@ export async function removeDevisItem(id: string, itemId: string) {
 
   revalidatePath(`/app/actions/${id}`)
   redirect(`/app/actions/${id}`)
+}
+
+// Prépare le partage : fige le devis s'il ne l'est pas encore, lui donne son
+// lien public, puis renvoie l'artisan sur la fiche où le lien s'affiche.
+export async function shareDevis(id: string) {
+  const plan = await getUserPlan()
+  if (!planHasFeature(plan, 'devis_pdf')) redirect('/app/choisir-offre')
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const ownerId = await resolveOwnerId(supabase, user.id)
+  const result = await sendDevisVersion(supabase, ownerId, id, plan)
+
+  revalidatePath(`/app/actions/${id}`)
+  redirect(result.ok ? `/app/actions/${id}` : `/app/actions/${id}?partage=${result.reason}`)
 }

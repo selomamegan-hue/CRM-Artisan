@@ -8,14 +8,16 @@ import { whatsappLink } from '@/lib/whatsapp'
 import { planHasFeature, devisMonthlyLimit } from '@/lib/plans'
 import { getUserPlan } from '@/lib/plans-server'
 import { countDevisSentThisMonth } from '@/lib/devis-versions'
+import { siteOrigin } from '@/lib/site-origin'
 import { resolveOwnerId } from '@/lib/delegates'
-import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem, markDevisValidated, updateDevisTotals } from './actions'
+import { markDone, cancelAction, postpone, recordPayment, addDevisItem, removeDevisItem, markDevisValidated, updateDevisTotals, shareDevis } from './actions'
 import { PaymentReceipt } from './receipt'
+import { DevisShare } from './devis-share'
 import { UpsellBanner } from '@/components/UpsellBanner'
 
 export default async function ActionDetailPage({ params, searchParams }: PageProps<'/app/actions/[id]'>) {
   const { id } = await params
-  const { paid } = await searchParams
+  const { paid, partage } = await searchParams
   const supabase = await createClient()
 
   const {
@@ -44,13 +46,14 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
     validated_at: string | null
     discount_amount: number
     vat_rate: number | null
+    public_token: string | null
   } | null = null
   let devisItems: { id: string; description: string; quantity: number; unit_price: number }[] = []
 
   if (action.type === 'devis') {
     const { data: version } = await supabase
       .from('devis_versions')
-      .select('id, number, status, validated_at, discount_amount, vat_rate')
+      .select('id, number, status, validated_at, discount_amount, vat_rate, public_token')
       .eq('action_id', id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -63,6 +66,7 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
         validated_at: version.validated_at,
         discount_amount: Number(version.discount_amount),
         vat_rate: version.vat_rate != null ? Number(version.vat_rate) : null,
+        public_token: version.public_token,
       }
       const { data: items } = await supabase
         .from('devis_items')
@@ -95,6 +99,17 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
 
   const devisRef = devisVersion ? `Devis N°${devisVersion.number}` : null
   const closing = signature ? `, ${signature}` : ''
+
+  // Le lien public n'existe qu'une fois le devis figé : un brouillon n'a
+  // encore rien à montrer au client.
+  const lienDevis = devisVersion?.public_token ? `${await siteOrigin()}/devis/${devisVersion.public_token}` : null
+  const messageDevis =
+    lienDevis && client && devisVersion
+      ? `Bonjour ${client.name}, voici votre devis N°${devisVersion.number}` +
+        (action.amount != null ? ` d'un montant de ${formatAmount(action.amount)}` : '') +
+        ` : ${lienDevis}` +
+        (signature ? `\n\n${signature}` : '')
+      : null
 
   let receiptMessage: string | null = null
   if (paid === '1' && lastPayment && client) {
@@ -206,6 +221,27 @@ export default async function ActionDetailPage({ params, searchParams }: PagePro
                 </>
               )}
             </p>
+          )}
+
+          {partage === 'quota' && (
+            <p className="mb-2 text-[12px] font-semibold text-[#D97B4F]">
+              Quota de devis atteint ce mois-ci : le lien n&apos;a pas pu être créé.
+            </p>
+          )}
+
+          {lienDevis && messageDevis ? (
+            <DevisShare url={lienDevis} message={messageDevis} phone={client?.phone ?? null} />
+          ) : (
+            !devisQuotaExhausted && (
+              <form action={shareDevis.bind(null, action.id)} className="mb-3">
+                <button
+                  type="submit"
+                  className="w-full rounded-full bg-[#1A5F7A] px-3.5 py-2.5 text-[13px] font-semibold text-white"
+                >
+                  Créer le lien à envoyer au client
+                </button>
+              </form>
+            )
           )}
 
           {canUseStamps && devisVersion?.status === 'envoye' && !devisVersion.validated_at && (
