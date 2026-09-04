@@ -9,6 +9,15 @@ export const PLAN_LABEL: Record<Plan, string> = {
 
 export const PLAN_ORDER: Plan[] = ['pro', 'premium', 'gold']
 
+// Tarif mensuel en FCFA. Sert au calcul des commissions de parrainage ;
+// les prix affichés sur la page d'accueil doivent suivre.
+export const PLAN_PRICE: Record<Plan, number> = {
+  essai: 0,
+  pro: 3000,
+  premium: 3500,
+  gold: 5000,
+}
+
 export type Feature =
   | 'payments'
   | 'chantier'

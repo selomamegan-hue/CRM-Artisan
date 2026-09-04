@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_STYLE } from '../site-style'
+import { TAUX_COMMISSION, DUREE_COMMISSION_MOIS } from '@/lib/parrainage'
 import { PartenaireBehaviour } from './partenaire-behaviour'
 
 /* Le programme partenaires. Une page à part plutôt qu'une section de plus sur
@@ -18,8 +19,8 @@ export const metadata: Metadata = {
 /* LE BARÈME — tout ce qui touche à l'argent est regroupé ici pour que
    modifier le programme n'oblige pas à relire la page entière.       */
 
-const TAUX = 10 // % de l'abonnement encaissé, reversé chaque mois
-const DUREE_MOIS = 12 // durée de la commission, à partir du 1er mois payé
+const TAUX = TAUX_COMMISSION
+const DUREE_MOIS = DUREE_COMMISSION_MOIS
 const SEUIL_VERSEMENT = '5 000 FCFA' // en dessous, le solde est reporté
 const MOIS_DECLENCHEUR = 2 // le 1er versement tombe au 2e mois payé
 

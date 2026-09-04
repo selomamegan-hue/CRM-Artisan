@@ -65,7 +65,7 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
   const encaissesQuery = supabase.from('payments').select('amount')
 
   const [{ data: profile }, emisResult, encaissesResult, encours, delegatesResult] = await Promise.all([
-    supabase.from('profiles').select('full_name, address, whatsapp, subscription_expires_at, logo_url, vat_registered').eq('id', ownerId).single(),
+    supabase.from('profiles').select('full_name, address, whatsapp, subscription_expires_at, logo_url, vat_registered, is_admin').eq('id', ownerId).single(),
     canSeeDashboard
       ? debut
         ? emisQuery.gte('created_at', debut.toISOString())
@@ -378,6 +378,22 @@ export default async function SettingsPage({ searchParams }: PageProps<'/app/set
           <UpsellBanner text="Tableau de bord facturé vs collecté" plan="Gold" />
         )}
       </div>
+
+      {/* Réservé au compte principal : c'est de l'argent qui sort. */}
+      {profile?.is_admin && (
+        <Link
+          href="/app/parrainage"
+          className="mt-6 flex items-center justify-between rounded-[10px] bg-white px-3.5 py-3 shadow-[0_1px_2px_rgba(34,48,58,0.05),0_1px_6px_rgba(34,48,58,0.06)]"
+        >
+          <span className="text-[14px] font-semibold text-[#22303A]">Parrainage</span>
+          <span className="flex items-center gap-1.5 text-[12.5px] text-[#5B6B72]">
+            Codes et commissions
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[#8B9298]">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </span>
+        </Link>
+      )}
 
       <div className="mt-6">
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.03em] text-[#5B6B72]">Un avis, une idée ?</p>

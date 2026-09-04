@@ -62,6 +62,25 @@ export default function SignupPage() {
           className="rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm text-[#22303A] outline-none focus:border-[#1A5F7A]"
         />
 
+        {/* Facultatif, et présenté comme tel : la grande majorité des
+            artisans s'inscrivent sans code, et un champ obligatoire d'aspect
+            administratif ferait abandonner. */}
+        <div className="flex flex-col gap-1">
+          <input
+            name="code_parrainage"
+            type="text"
+            inputMode="text"
+            autoCapitalize="characters"
+            autoComplete="off"
+            maxLength={12}
+            placeholder="Code de parrainage (facultatif)"
+            className="rounded border border-[#22303A]/20 bg-white px-3 py-2 text-sm uppercase tracking-[0.08em] text-[#22303A] outline-none placeholder:normal-case placeholder:tracking-normal focus:border-[#1A5F7A]"
+          />
+          <p className="text-[12px] leading-snug text-[#8B9298]">
+            Si quelqu&apos;un vous a fait connaître Bonfil, son code lui revient.
+          </p>
+        </div>
+
         {state?.error && (
           <div className="flex flex-col gap-1 text-sm text-[#C96A3D]">
             <p>{state.error}</p>
