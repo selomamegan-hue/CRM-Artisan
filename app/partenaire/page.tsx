@@ -10,15 +10,16 @@ import { PartenaireBehaviour } from './partenaire-behaviour'
 export const metadata: Metadata = {
   title: 'Devenir partenaire',
   description:
-    'Vous connaissez des artisans ? Présentez-leur Bonfil et touchez 20 % de leur ' +
-    'abonnement chaque mois, tant qu’ils restent. Paiement par Mobile Money.',
+    'Vous connaissez des artisans ? Présentez-leur Bonfil et touchez 10 % de leur ' +
+    'abonnement chaque mois, pendant 12 mois. Paiement par Mobile Money.',
 }
 
 /* ------------------------------------------------------------------ */
 /* LE BARÈME — tout ce qui touche à l'argent est regroupé ici pour que
    modifier le programme n'oblige pas à relire la page entière.       */
 
-const TAUX = 20 // % de l'abonnement encaissé, reversé chaque mois
+const TAUX = 10 // % de l'abonnement encaissé, reversé chaque mois
+const DUREE_MOIS = 12 // durée de la commission, à partir du 1er mois payé
 const SEUIL_VERSEMENT = '5 000 FCFA' // en dessous, le solde est reporté
 const MOIS_DECLENCHEUR = 2 // le 1er versement tombe au 2e mois payé
 
@@ -26,9 +27,9 @@ const MOIS_DECLENCHEUR = 2 // le 1er versement tombe au 2e mois payé
    3 000 / 3 500 / 5 000 FCFA — recalculer ces trois lignes si les tarifs
    de la page d'accueil bougent. */
 const PAR_OFFRE = [
-  { offre: 'Pro', prix: '3 000', gain: '600' },
-  { offre: 'Premium', prix: '3 500', gain: '700' },
-  { offre: 'Gold', prix: '5 000', gain: '1 000' },
+  { offre: 'Pro', prix: '3 000', gain: '300' },
+  { offre: 'Premium', prix: '3 500', gain: '350' },
+  { offre: 'Gold', prix: '5 000', gain: '500' },
 ]
 
 /* Primes de volume, en plus de la commission. Comptées sur les artisans
@@ -87,9 +88,9 @@ const PROFILS: Profil[] = [
 const ETAPES = [
   {
     n: 'Étape 1',
-    titre: 'On vous donne un lien',
+    titre: 'Vous demandez un code',
     texte:
-      'Un lien et un code à votre nom. Tout artisan qui s’inscrit par ce lien, ou qui donne votre code, vous est rattaché.',
+      'Vous nous écrivez, on vous répond avec un code de parrainage à votre nom. Tout artisan qui le donne à l’inscription vous est rattaché, définitivement.',
   },
   {
     n: 'Étape 2',
@@ -101,13 +102,16 @@ const ETAPES = [
     n: 'Étape 3',
     titre: 'Vous êtes payé',
     texte:
-      'Chaque mois, par Mobile Money — Mixx by Yas ou Flooz. Tant que l’artisan reste abonné, vous continuez de toucher.',
+      `Chaque mois, par Mobile Money — Mixx by Yas ou Flooz. Tant que l’artisan reste abonné, vous continuez de toucher, jusqu’à son ${DUREE_MOIS}ᵉ mois payé.`,
   },
 ]
 
 const REGLES = [
+  `Votre code de parrainage vous est remis à la main, et vaut ${DUREE_MOIS} mois. Il peut être révoqué à tout moment — la révocation vous empêche d’amener de nouveaux artisans, elle ne touche pas un seul franc de ce que les vôtres vous rapportent encore.`,
   'La commission porte sur l’abonnement réellement encaissé, jamais sur une simple inscription : les faux comptes ne rapportent rien.',
+  'La fraude fait exception à tout le reste : faux comptes, inscriptions achetées, abonnements payés pour toucher la commission. Le code est coupé et la totalité des sommes en cours est perdue.',
   `L’essai gratuit de 15 jours ne compte pas. Un artisan devient « actif » au premier mois payé, et le premier versement tombe au ${MOIS_DECLENCHEUR}ᵉ mois payé.`,
+  `La commission court sur les ${DUREE_MOIS} premiers mois payés par l’artisan. Passé ce terme il reste le vôtre — vous ne serez jamais dépossédé du lien — mais il ne génère plus de commission.`,
   'Un artisan est rattaché au premier partenaire qui l’a amené, définitivement. Pas de compétition sur le même nom.',
   'Si l’artisan arrête son abonnement, la commission s’arrête — mais rien de ce qui vous a déjà été versé n’est repris.',
   'Vous voyez vos artisans et votre solde depuis votre propre espace. Aucun chiffre n’est caché.',
@@ -218,7 +222,7 @@ export default function Partenaire() {
                   letterSpacing: '-0.01em',
                 }}
               >
-                {TAUX} % de l’abonnement, chaque mois, tant qu’il reste.
+                {TAUX} % de l’abonnement, chaque mois, pendant {DUREE_MOIS} mois.
               </h2>
               <p
                 style={{
@@ -229,8 +233,9 @@ export default function Partenaire() {
                   maxWidth: '38ch',
                 }}
               >
-                Pas une prime versée une fois puis oubliée. Tant que l’artisan que vous avez amené
-                paye son abonnement, vous touchez votre part — ce mois-ci, et tous les suivants.
+                Pas une prime versée une fois puis oubliée. Chaque mois où l’artisan que vous avez
+                amené paye son abonnement, vous touchez votre part — pendant {DUREE_MOIS} mois à
+                compter de son premier paiement.
               </p>
               <p
                 style={{
@@ -263,8 +268,9 @@ export default function Partenaire() {
                 <p className="pe-titre">Ce que ça donne</p>
                 <p className="pe-corps">
                   20 artisans en Premium qui restent abonnés, c’est{' '}
-                  <strong>14 000 FCFA par mois</strong> — sans rien refaire. À 50, c’est{' '}
-                  <strong>35 000 FCFA par mois</strong>, plus les primes de volume.
+                  <strong>7 000 FCFA par mois</strong> — soit <strong>84 000 FCFA</strong> sur les
+                  douze mois, sans rien refaire. À 50, c’est <strong>17 500 FCFA par mois</strong>,
+                  plus les primes de volume.
                 </p>
               </div>
 
