@@ -102,11 +102,20 @@ export default async function ParrainagePage({ searchParams }: PageProps<'/app/p
   // deux comptent : une date de premier paiement postée dans le futur ne
   // doit pas faire apparaître une commission qui n'a pas encore commencé.
   const maintenant = new Date()
-  const enCours = (a: Artisan) => {
-    if (a.premierPaiement == null) return false
+
+  // Trois états, pas deux : une fenêtre peut n'avoir pas encore commencé —
+  // un premier paiement enregistré d'avance — et « terminé » serait alors
+  // exactement le contraire de la vérité.
+  type EtatCommission = 'aucune' | 'a_venir' | 'en_cours' | 'terminee'
+
+  const etatCommission = (a: Artisan): EtatCommission => {
+    if (a.premierPaiement == null) return 'aucune'
     const debut = new Date(a.premierPaiement)
-    return debut <= maintenant && finDeCommission(debut) > maintenant
+    if (debut > maintenant) return 'a_venir'
+    return finDeCommission(debut) > maintenant ? 'en_cours' : 'terminee'
   }
+
+  const enCours = (a: Artisan) => etatCommission(a) === 'en_cours'
 
   const duCeMois = codes.reduce(
     (total, c) => total + c.artisans.filter(enCours).reduce((s, a) => s + commissionMensuelle(a.plan), 0),
@@ -220,7 +229,7 @@ export default async function ParrainagePage({ searchParams }: PageProps<'/app/p
                 {c.artisans.length > 0 && (
                   <div className="mt-3 flex flex-col gap-2 border-t border-[#22303A]/[0.12] pt-3">
                     {c.artisans.map((a) => {
-                      const ouvert = enCours(a)
+                      const etat = etatCommission(a)
                       const fin = a.premierPaiement ? finDeCommission(new Date(a.premierPaiement)) : null
                       return (
                         <div key={a.id} className="flex flex-col gap-1.5">
@@ -233,9 +242,17 @@ export default async function ParrainagePage({ searchParams }: PageProps<'/app/p
                                 {fin && <> · commission jusqu’au {jour(fin.toISOString())}</>}
                               </p>
                             </div>
-                            {a.premierPaiement && (
-                              <span className={`shrink-0 text-[12.5px] font-semibold ${ouvert ? 'text-[#3A9188]' : 'text-[#8B9298]'}`}>
-                                {ouvert ? `${formatAmount(commissionMensuelle(a.plan))} / mois` : 'Terminé'}
+                            {etat !== 'aucune' && (
+                              <span
+                                className={`shrink-0 text-[12.5px] font-semibold ${
+                                  etat === 'en_cours' ? 'text-[#3A9188]' : 'text-[#8B9298]'
+                                }`}
+                              >
+                                {etat === 'en_cours'
+                                  ? `${formatAmount(commissionMensuelle(a.plan))} / mois`
+                                  : etat === 'a_venir'
+                                    ? `À partir du ${jour(a.premierPaiement!)}`
+                                    : 'Terminé'}
                               </span>
                             )}
                           </div>
