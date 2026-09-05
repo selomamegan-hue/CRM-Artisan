@@ -59,12 +59,20 @@ export async function updateSession(request: NextRequest) {
     const ownerId = await resolveOwnerId(supabase, user.id)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('subscription_expires_at')
+      .select('subscription_expires_at, is_admin')
       .eq('id', ownerId)
       .single()
 
+    // L'opérateur n'est pas un client : il n'a pas d'abonnement à renouveler.
+    // Sans cette exception, l'expiration de son propre essai lui fermerait
+    // l'écran Parrainage — au moment précis où il doit y encaisser des mois
+    // et payer ses partenaires. Le drapeau ne vaut que pour le compte
+    // lui-même : un compte secondaire n'hérite pas de l'administration de
+    // son principal, comme sur l'écran lui-même.
+    const estOperateur = ownerId === user.id && profile?.is_admin === true
+
     const expiresAt = profile?.subscription_expires_at
-    const expired = expiresAt && new Date(expiresAt).getTime() < Date.now()
+    const expired = !estOperateur && expiresAt && new Date(expiresAt).getTime() < Date.now()
 
     if (expired) {
       const url = request.nextUrl.clone()
