@@ -5,7 +5,7 @@ import { fraunces } from '@/lib/fonts'
 import { formatAmount } from '@/lib/currency'
 import { whatsappLink } from '@/lib/whatsapp'
 import type { Plan } from '@/lib/plans'
-import { PLAN_LABEL } from '@/lib/plans'
+import { PLAN_LABEL, PLAN_ORDER, PLAN_PRICE } from '@/lib/plans'
 import {
   TAUX_COMMISSION,
   DUREE_COMMISSION_MOIS,
@@ -13,7 +13,7 @@ import {
   etatDuCode,
   finDeCommission,
 } from '@/lib/parrainage'
-import { creerCode, revoquerCode, reactiverCode, marquerPremierPaiement } from './actions'
+import { creerCode, revoquerCode, reactiverCode, encaisserUnMois } from './actions'
 
 /* L'écran d'administration du programme partenaires. Réservé au compte
    principal : c'est de l'argent qui sort, pas une page de plus. */
@@ -31,6 +31,7 @@ type Ligne = {
   artisan_plan: string | null
   inscrit_le: string | null
   first_paid_at: string | null
+  abonnement_jusqu_au: string | null
 }
 
 type Artisan = {
@@ -39,6 +40,7 @@ type Artisan = {
   plan: Plan
   inscritLe: string
   premierPaiement: string | null
+  abonnementJusquAu: string | null
 }
 
 type CodeGroupe = {
@@ -56,7 +58,8 @@ const jour = (iso: string) =>
   new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default async function ParrainagePage({ searchParams }: PageProps<'/app/parrainage'>) {
-  const { cree, revoque, erreur } = await searchParams
+  const { cree, revoque, encaisse, erreur } = await searchParams
+  const aujourdhui = new Date().toISOString().slice(0, 10)
   const supabase = await createClient()
 
   const {
@@ -89,6 +92,7 @@ export default async function ParrainagePage({ searchParams }: PageProps<'/app/p
         plan: (l.artisan_plan ?? 'essai') as Plan,
         inscritLe: l.inscrit_le!,
         premierPaiement: l.first_paid_at,
+        abonnementJusquAu: l.abonnement_jusqu_au,
       })
     }
   }
@@ -169,6 +173,10 @@ export default async function ParrainagePage({ searchParams }: PageProps<'/app/p
         {revoque === '1' && <p className="mt-2 text-[12.5px] text-[#D97B4F]">Code révoqué. Les commissions en cours continuent.</p>}
         {erreur === 'nom' && <p className="mt-2 text-[12.5px] text-[#D97B4F]">Il faut au moins un nom de partenaire.</p>}
         {erreur === 'creation' && <p className="mt-2 text-[12.5px] text-[#D97B4F]">La création a échoué, réessaie.</p>}
+        {encaisse === '1' && <p className="mt-2 text-[12.5px] text-[#3A9188]">Mois encaissé — offre et échéance à jour.</p>}
+        {erreur === 'encaissement' && (
+          <p className="mt-2 text-[12.5px] text-[#D97B4F]">Il faut une offre et une date. Rien n&apos;a été enregistré.</p>
+        )}
       </div>
 
       {/* ---------- Les codes ---------- */}
@@ -211,31 +219,52 @@ export default async function ParrainagePage({ searchParams }: PageProps<'/app/p
                       const ouvert = enCours(a)
                       const fin = a.premierPaiement ? finDeCommission(new Date(a.premierPaiement)) : null
                       return (
-                        <div key={a.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                          <div className="min-w-0">
-                            <p className="truncate text-[13.5px] text-[#22303A]">{a.nom}</p>
-                            <p className="text-[11.5px] text-[#8B9298]">
-                              {PLAN_LABEL[a.plan]} · inscrit le {jour(a.inscritLe)}
-                              {fin && <> · commission jusqu’au {jour(fin.toISOString())}</>}
-                            </p>
+                        <div key={a.id} className="flex flex-col gap-1.5">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-[13.5px] text-[#22303A]">{a.nom}</p>
+                              <p className="text-[11.5px] leading-snug text-[#8B9298]">
+                                {PLAN_LABEL[a.plan]} · inscrit le {jour(a.inscritLe)}
+                                {a.abonnementJusquAu && <> · payé jusqu’au {jour(a.abonnementJusquAu)}</>}
+                                {fin && <> · commission jusqu’au {jour(fin.toISOString())}</>}
+                              </p>
+                            </div>
+                            {a.premierPaiement && (
+                              <span className={`shrink-0 text-[12.5px] font-semibold ${ouvert ? 'text-[#3A9188]' : 'text-[#8B9298]'}`}>
+                                {ouvert ? `${formatAmount(commissionMensuelle(a.plan))} / mois` : 'Terminé'}
+                              </span>
+                            )}
                           </div>
-                          {a.premierPaiement ? (
-                            <span className={`text-[12.5px] font-semibold ${ouvert ? 'text-[#3A9188]' : 'text-[#8B9298]'}`}>
-                              {ouvert ? `${formatAmount(commissionMensuelle(a.plan))} / mois` : 'Terminé'}
-                            </span>
-                          ) : (
-                            <form action={marquerPremierPaiement.bind(null, a.id)} className="flex items-center gap-1.5">
-                              <input
-                                type="date"
-                                name="date"
-                                required
-                                className="rounded-[6px] border border-[#22303A]/20 px-2 py-1 text-[12px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
-                              />
-                              <button type="submit" className="text-[12.5px] font-semibold text-[#1A5F7A] underline underline-offset-2">
-                                1er paiement
-                              </button>
-                            </form>
-                          )}
+
+                          {/* Offre, date et échéance bougent ensemble : c'est le
+                              même geste, le jour où l'argent arrive. */}
+                          <form action={encaisserUnMois.bind(null, a.id)} className="flex flex-wrap items-center gap-1.5">
+                            <select
+                              name="offre"
+                              required
+                              defaultValue={PLAN_ORDER.includes(a.plan) ? a.plan : ''}
+                              className="rounded-[6px] border border-[#22303A]/20 bg-white px-2 py-1 text-[12px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
+                            >
+                              <option value="" disabled>
+                                Offre…
+                              </option>
+                              {PLAN_ORDER.map((p) => (
+                                <option key={p} value={p}>
+                                  {PLAN_LABEL[p]} — {formatAmount(PLAN_PRICE[p])}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="date"
+                              name="date"
+                              required
+                              defaultValue={aujourdhui}
+                              className="rounded-[6px] border border-[#22303A]/20 px-2 py-1 text-[12px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
+                            />
+                            <button type="submit" className="text-[12.5px] font-semibold text-[#1A5F7A] underline underline-offset-2">
+                              {a.premierPaiement ? 'Encaisser un mois' : 'Encaisser le 1er mois'}
+                            </button>
+                          </form>
                         </div>
                       )
                     })}

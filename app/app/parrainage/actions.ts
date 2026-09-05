@@ -71,17 +71,23 @@ export async function reactiverCode(id: string) {
   redirect(ECRAN)
 }
 
-// Ouvre la fenêtre de commission d'un artisan. Bonfil n'encaisse pas les
-// abonnements — c'est donc une saisie, faite le jour où l'argent arrive.
-export async function marquerPremierPaiement(artisanId: string, formData: FormData) {
+// Bonfil n'encaisse pas les abonnements — l'argent arrive par Mobile Money,
+// à la main. Ce geste enregistre le mois : l'offre payante, la fenêtre de
+// commission si c'est le premier, et l'échéance repoussée d'un mois. Les
+// trois vont ensemble : poser l'offre sans l'échéance enfermerait l'artisan
+// dehors au prochain chargement.
+export async function encaisserUnMois(artisanId: string, formData: FormData) {
+  const offre = String(formData.get('offre') ?? '').trim()
   const saisie = String(formData.get('date') ?? '').trim()
-  const supabase = await clientAdmin()
+  if (!offre || !saisie) redirect(`${ECRAN}?erreur=encaissement`)
 
-  await supabase.rpc('parrainage_premier_paiement', {
+  const supabase = await clientAdmin()
+  const { error } = await supabase.rpc('parrainage_encaisser', {
     p_artisan: artisanId,
-    p_date: saisie ? new Date(saisie).toISOString() : null,
+    p_plan: offre,
+    p_date: new Date(saisie).toISOString(),
   })
 
   revalidatePath(ECRAN)
-  redirect(ECRAN)
+  redirect(error ? `${ECRAN}?erreur=encaissement` : `${ECRAN}?encaisse=1`)
 }
