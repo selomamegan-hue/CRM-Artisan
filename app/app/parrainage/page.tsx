@@ -98,11 +98,15 @@ export default async function ParrainagePage({ searchParams }: PageProps<'/app/p
   }
   const codes = [...parCode.values()]
 
-  // Ce qui est réellement dû ce mois-ci : un artisan ne compte que si son
-  // premier paiement est enregistré et que ses douze mois courent encore.
+  // Ce qui est réellement dû ce mois-ci. La fenêtre a deux bords, et les
+  // deux comptent : une date de premier paiement postée dans le futur ne
+  // doit pas faire apparaître une commission qui n'a pas encore commencé.
   const maintenant = new Date()
-  const enCours = (a: Artisan) =>
-    a.premierPaiement != null && finDeCommission(new Date(a.premierPaiement)) > maintenant
+  const enCours = (a: Artisan) => {
+    if (a.premierPaiement == null) return false
+    const debut = new Date(a.premierPaiement)
+    return debut <= maintenant && finDeCommission(debut) > maintenant
+  }
 
   const duCeMois = codes.reduce(
     (total, c) => total + c.artisans.filter(enCours).reduce((s, a) => s + commissionMensuelle(a.plan), 0),
@@ -254,10 +258,14 @@ export default async function ParrainagePage({ searchParams }: PageProps<'/app/p
                                 </option>
                               ))}
                             </select>
+                            {/* On enregistre un encaissement, pas une promesse :
+                                une date future ouvrirait une fenêtre de
+                                commission qui n'a pas commencé. */}
                             <input
                               type="date"
                               name="date"
                               required
+                              max={aujourdhui}
                               defaultValue={aujourdhui}
                               className="rounded-[6px] border border-[#22303A]/20 px-2 py-1 text-[12px] text-[#22303A] outline-none focus:border-[#1A5F7A]"
                             />
